@@ -1,7 +1,7 @@
 from aiogram import types, Dispatcher
 from aiogram.dispatcher import FSMContext
+from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from create_bot import dp
 
 
 class FSMAdmin(StatesGroup):
@@ -12,9 +12,18 @@ class FSMAdmin(StatesGroup):
 
 
 # Dialog for add new task
-async def add_new_task(message: types.Message, state=None):
+async def add_new_task(message: types.Message):
     await FSMAdmin.task_title.set()
     await message.reply('Введите название задания')
+
+
+# Exit from FSMAdmin
+async def cancel_handler(message: types.Message, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state is None:
+        return
+    await state.finish()
+    await message.reply('OK')
 
 
 # Get first answer and put it into dict
@@ -45,6 +54,7 @@ async def get_to_user(message: types.Message, state: FSMContext):
 async def get_to_time(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['to_time'] = message.text
+
     async with state.proxy() as data:
         await message.reply(str(data))
     await state.finish()
@@ -53,7 +63,10 @@ async def get_to_time(message: types.Message, state: FSMContext):
 # Registering handlers
 def register_handler_for_admin(dp: Dispatcher):
     dp.register_message_handler(add_new_task, commands=['Новое_задание'], state=None)
+    dp.register_message_handler(cancel_handler, commands='отмена', state="*")
+    dp.register_message_handler(cancel_handler, Text(equals='отмена', ignore_case=True), state="*")
     dp.register_message_handler(get_task_title, state=FSMAdmin.task_title)
     dp.register_message_handler(get_task, state=FSMAdmin.task)
     dp.register_message_handler(get_to_user, state=FSMAdmin.to_user)
     dp.register_message_handler(get_to_time, state=FSMAdmin.to_time)
+
