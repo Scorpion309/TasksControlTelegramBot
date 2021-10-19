@@ -13,6 +13,7 @@ if __name__ == '__main__':
 
     async def on_shutdown(_):
         print('Bot offline')
+        dp.stop_polling()
         # sqlite_db.sql_stop()
 
 
