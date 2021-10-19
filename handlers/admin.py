@@ -2,10 +2,14 @@ from aiogram import types, Dispatcher
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import State, StatesGroup
+
 from create_bot import bot
 from data_base import sqlite_db
+from keyboards import admin_kb
 
 ID = None
+GROUP_ID = None
+
 
 class FSMAdmin(StatesGroup):
     task_title = State()
@@ -15,12 +19,14 @@ class FSMAdmin(StatesGroup):
 
 
 # Is the user administrator?
-#@dp.register_message_handler(commands=['moderator'], is_chat_admin=True)
+# @dp.register_message_handler(commands=['moderator'], is_chat_admin=True)
 async def make_changes_command(message: types.Message):
-    global ID
+    global ID, GROUP_ID
+    GROUP_ID = message.chat.id
     ID = message.from_user.id
-    await bot.send_message(message.from_user.id, 'Что надо, хозяин???')
+    await bot.send_message(message.from_user.id, 'Что надо, хозяин???', reply_markup=admin_kb.kb_admin)
     await message.delete()
+
 
 # Dialog for add new task
 async def add_new_task(message: types.Message):

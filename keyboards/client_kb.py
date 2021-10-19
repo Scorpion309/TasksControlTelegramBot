@@ -1,7 +1,7 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton#, ReplyKeyboardRemove
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton  # , ReplyKeyboardRemove
 
-start_button = KeyboardButton('/start')
-new_task_button = KeyboardButton('/Новое_задание')
+my_active_tasks_button = KeyboardButton('/Просмотреть задания')
+change_execute_time_button = KeyboardButton('/Продлить срок')
 
 kb_client = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-kb_client.add(start_button).insert(new_task_button)
+kb_client.add(my_active_tasks_button).insert(change_execute_time_button)

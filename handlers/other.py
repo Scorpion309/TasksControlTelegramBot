@@ -2,6 +2,10 @@ from aiogram import types, Dispatcher
 
 
 async def echo_send(message: types.Message):
+    # chat_admins = await message.chat.get_administrators()
+    # for admin in chat_admins:
+    #     print(admin)
+
     await message.reply('message.text')
 
 
