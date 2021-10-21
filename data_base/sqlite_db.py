@@ -43,10 +43,67 @@ async def sql_add_task_to_db(state):
         cur.execute('INSERT INTO tasks (task, start_time, execute_time)'
                     ' VALUES (?, ?, ?)', (data['task'], start_time, to_time))
         task_id = cur.lastrowid
-        for user in data['to_user']:
+
+        if isinstance(data['to_user'], list):
+            for user in data['to_user']:
+                cur.execute('INSERT INTO task (from_user_id, to_user_id, task_id, active)'
+                            ' VALUES (?, ?, ?, ?)', (data['from_user'], user, task_id, True))
+        else:
             cur.execute('INSERT INTO task (from_user_id, to_user_id, task_id, active)'
-                        ' VALUES (?, ?, ?, ?)', (data['from_user'], user, task_id, True))
+                        ' VALUES (?, ?, ?, ?)', (data['from_user'], data['to_user'], task_id, True))
         base.commit()
+
+
+async def sql_add_user_to_db(user_info):
+    cur.execute('INSERT OR REPLACE INTO groups (id, group_name) VALUES (1, "All_users")')
+    group_id = cur.lastrowid
+    cur.execute('INSERT OR REPLACE INTO users (user_id, user_name, group_id, admin)'
+                ' VALUES (?, ?, ?, ?)', (user_info['id'], user_info['username'], group_id, False))
+    base.commit()
+
+
+async def sql_add_group_to_db(state):
+    async with state.proxy() as group:
+        cur.execute('INSERT INTO groups (group_name) VALUES (?)', (group['name'],))
+        base.commit()
+
+
+async def sql_add_admins_to_db(admins):
+    cur.execute('INSERT OR REPLACE INTO groups (id, group_name) VALUES (2, "Administrator")')
+    cur.execute('SELECT user_id FROM users WHERE admin = TRUE')
+    admins_in_base = cur.fetchall()
+    admins_in_base = [admin_id[0] for admin_id in admins_in_base]
+    group_id = cur.lastrowid
+    # add admin if not in base
+    for admin_id in admins:
+        if admin_id not in admins_in_base:
+            print('User ', admin_id, 'added to administrator group')
+            cur.execute('INSERT OR REPLACE INTO users (user_id, user_name, group_id, admin)'
+                        ' VALUES (?, ?, ?, ?)',
+                        (admin_id, admins[admin_id]['username'], group_id, admins[admin_id]['admin_status']))
+    # del admin from base
+    for admin_id_in_base in admins_in_base:
+        if admin_id_in_base not in admins:
+            print('User ', admin_id_in_base, 'deleted from administrator group')
+            cur.execute('UPDATE users SET admin = FALSE, group_id = 1 WHERE user_id = ?', (admin_id_in_base,))
+    base.commit()
+
+
+async def sql_del_user_from_db(user_info):
+    cur.execute('DELETE FROM users WHERE user_id = ?', (user_info['id'],))
+    base.commit()
+
+
+async def sql_get_groups_from_db():
+    cur.execute('SELECT group_name, id FROM groups WHERE id NOT IN (1, 2)')
+    groups_in_base = cur.fetchall()
+    base.commit()
+    return groups_in_base
+
+
+async def sql_del_group_from_db(group_name):
+    cur.execute('DELETE FROM groups WHERE group_name = ?', (group_name,))
+    base.commit()
 
 
 async def sql_bd():
