@@ -1,6 +1,7 @@
 from aiogram import types, Dispatcher
 
 from create_bot import bot
+from data_base import sqlite_db
 
 
 # new user in group
@@ -26,4 +27,3 @@ def register_handlers_for_other(dp: Dispatcher):
     dp.register_message_handler(new_member, content_types=["new_chat_members"])
     dp.register_message_handler(left_member, content_types=["left_chat_member"])
     dp.register_message_handler(echo_send)
-

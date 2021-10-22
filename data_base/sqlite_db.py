@@ -1,5 +1,5 @@
 import sqlite3 as sq
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 
 def sql_start():
@@ -21,6 +21,7 @@ def sql_start():
 
     base.execute('CREATE TABLE IF NOT EXISTS tasks('
                  'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+                 'task_title VARCHAR(255) NOT NULL,'
                  'task VARCHAR(255) NOT NULL,'
                  'start_time DATETIME,'
                  'execute_time DATETIME);')
@@ -38,16 +39,17 @@ def sql_start():
 
 async def sql_add_task_to_db(state):
     async with state.proxy() as data:
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now().replace(microsecond=0)
         to_time = start_time + timedelta(hours=int(data['to_time']))
-        cur.execute('INSERT INTO tasks (task, start_time, execute_time)'
-                    ' VALUES (?, ?, ?)', (data['task'], start_time, to_time))
+        cur.execute('INSERT INTO tasks (task_title, task, start_time, execute_time)'
+                    ' VALUES (?, ?, ?, ?)', (data['task_title'], data['task'], start_time, to_time))
         task_id = cur.lastrowid
 
         if isinstance(data['to_user'], list):
             for user in data['to_user']:
+                user_id = user.strip('.,;')
                 cur.execute('INSERT INTO task (from_user_id, to_user_id, task_id, active)'
-                            ' VALUES (?, ?, ?, ?)', (data['from_user'], user, task_id, True))
+                            ' VALUES (?, ?, ?, ?)', (data['from_user'], user_id, task_id, True))
         else:
             cur.execute('INSERT INTO task (from_user_id, to_user_id, task_id, active)'
                         ' VALUES (?, ?, ?, ?)', (data['from_user'], data['to_user'], task_id, True))
@@ -89,9 +91,16 @@ async def sql_add_admins_to_db(admins):
     base.commit()
 
 
-async def sql_del_user_from_db(user_info):
-    cur.execute('DELETE FROM users WHERE user_id = ?', (user_info['id'],))
+async def sql_get_active_tasks():
+    cur.execute('SELECT to_user_id, user_name, task_title, task, start_time, execute_time  FROM task '
+                'LEFT JOIN users '
+                'ON users.user_id = task.to_user_id '
+                'LEFT JOIN tasks '
+                'ON tasks.id = task.task_id '
+                'WHERE task.active = TRUE;')
+    active_tasks = cur.fetchall()
     base.commit()
+    return active_tasks
 
 
 async def sql_get_groups_from_db():
@@ -99,6 +108,11 @@ async def sql_get_groups_from_db():
     groups_in_base = cur.fetchall()
     base.commit()
     return groups_in_base
+
+
+async def sql_del_user_from_db(user_info):
+    cur.execute('DELETE FROM users WHERE user_id = ?', (user_info['id'],))
+    base.commit()
 
 
 async def sql_del_group_from_db(group_name):

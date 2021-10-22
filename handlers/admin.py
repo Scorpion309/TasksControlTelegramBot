@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from aiogram import types, Dispatcher
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
@@ -35,6 +37,26 @@ async def make_changes_command(message: types.Message):
     ID = message.from_user.id
     await bot.send_message(message.from_user.id, 'Что надо, хозяин???', reply_markup=admin_kb.kb_admin)
     await message.delete()
+
+
+async def active_tasks_show(message: types.Message):
+    if message.from_user.id == ID:
+        tasks = await sqlite_db.sql_get_active_tasks()
+        now_time = datetime.now().replace(microsecond=0)
+        for task in tasks:
+            deadline_time = datetime.strptime(task[5], '%Y-%m-%d %H:%M:%S')
+            if deadline_time < now_time:
+                time_delta = 'срок выполения задания истек!!!'
+            else:
+                time_delta = deadline_time - now_time
+            await bot.send_message(message.from_user.id,
+                                   'Название задания: {title}\n'
+                                   'Отправлено: {user_name}\n'
+                                   'Задание: {task_text}\n'
+                                   'До конца срока осталось: {time_delta}.\n'.format(title=task[2],
+                                                                                     task_text=task[3],
+                                                                                     time_delta=time_delta,
+                                                                                     user_name=task[1]))
 
 
 async def delete_group(message: types.Message):
@@ -114,15 +136,6 @@ async def get_group_name(message: types.Message, state: FSMContext):
         await state.finish()
 
 
-# Get first answer and put it into dict
-async def get_task_title(message: types.Message, state: FSMContext):
-    if message.from_user.id == ID:
-        async with state.proxy() as data:
-            data['task_title'] = message.text
-        await FSMAdmin.next()
-        await message.reply('Теперь введите текст задания')
-
-
 # Dialog for add new task
 async def add_new_task(message: types.Message):
     if message.from_user.id == ID:
@@ -162,7 +175,7 @@ async def get_task(message: types.Message, state: FSMContext):
 async def get_to_user(message: types.Message, state: FSMContext):
     if message.from_user.id == ID:
         async with state.proxy() as data:
-            data['to_user'] = message.text
+            data['to_user'] = message.text.split()
         await FSMAdmin.next()
         await message.reply('Введите срок исполнения')
 
@@ -176,6 +189,23 @@ async def get_to_time(message: types.Message, state: FSMContext):
 
         await sqlite_db.sql_add_task_to_db(state)
         await bot.send_message(message.from_user.id, 'Задание успешно добавлено')
+        async with state.proxy() as data:
+            if isinstance(data['to_user'], list):
+                for user in data['to_user']:
+                    user_id = user.strip('.,;')
+                    await bot.send_message(user_id, 'Вы получили новое задание!\n'
+                                              'От пользователя: {from_user}\n'
+                                              'Задание: {task}\n'
+                                              'Время выполнения: {time_delta}ч.'.format(from_user=data['from_user'],
+                                                                                        task=data['task'],
+                                                                                        time_delta=data['to_time']))
+            else:
+                await bot.send_message(data['to_user'], 'Вы получили новое задание!\n'
+                                                  'От пользователя: {from_user}\n'
+                                                  'Задание: {task}\n'
+                                                  'Время выполнения: {time_delta}ч.'.format(from_user=data['from_user'],
+                                                                                            task=data['task'],
+                                                                                            time_delta=data['to_time']))
         await state.finish()
 
 
@@ -184,6 +214,8 @@ def register_handler_for_admin(dp: Dispatcher):
     dp.register_message_handler(make_changes_command, commands=['moderator'], is_chat_admin=True)
 
     dp.register_message_handler(refresh_admins, commands=['Обновить_список_администраторов'])
+
+    dp.register_message_handler(active_tasks_show, commands=['Активные_задания'])
 
     dp.register_message_handler(add_new_group, commands=['Создать_группу'], state=None)
     dp.register_message_handler(cancel_handler_new_group, commands='отмена', state="*")

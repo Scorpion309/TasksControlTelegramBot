@@ -1,7 +1,7 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton  # , ReplyKeyboardRemove
 
 new_task_button = KeyboardButton('/Новое_задание')
-all_active_tasks_button = KeyboardButton('/Активные задания')
+all_active_tasks_button = KeyboardButton('/Активные_задания')
 change_task_button = KeyboardButton('/Изменить_задание')
 create_new_group = KeyboardButton('/Создать_группу')
 delete_group = KeyboardButton('/Удалить_группу')
