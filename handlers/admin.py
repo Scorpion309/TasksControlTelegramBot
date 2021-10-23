@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 
 from aiogram import types, Dispatcher
@@ -27,6 +28,13 @@ class FSMAddNewGroup(StatesGroup):
 class FSMDelGroup(StatesGroup):
     confirm = State()
     group_name = State()
+
+
+class FSMEditGroup(StatesGroup):
+    choise = State()
+    element = State()
+    group_name = State()
+    user_name = State()
 
 
 # Is the user administrator?
@@ -89,11 +97,78 @@ async def get_del_group_confirm(call: types.CallbackQuery, state: FSMContext):
         await call.message.edit_reply_markup()
         if call.data == 'Cancel':
             await call.message.answer('Удаление выбранной группы отменено')
-            await state.finish()
         else:
             await sqlite_db.sql_del_group_from_db(call.data)
             await call.message.answer('Группа {group_name} успешно удалена из базы'.format(group_name=call.data))
-            await state.finish()
+        await state.finish()
+
+
+async def edit_group(message: types.Message):
+    if message.from_user.id == ID:
+        groups_in_db = await sqlite_db.sql_get_groups_from_db()
+        edit_group_markup_kb = types.InlineKeyboardMarkup()
+        for group, group_id in groups_in_db:
+            inline_btn = types.InlineKeyboardButton(text=group, callback_data=str(group_id) + ';' + group)
+            edit_group_markup_kb.add(inline_btn)
+
+        await message.reply('Выберите группу, которую хотите отредактировать:',
+                            reply_markup=edit_group_markup_kb)
+        await FSMEditGroup.group_name.set()
+
+
+async def get_edit_group(call: types.CallbackQuery, state: FSMContext):
+    if call.from_user.id == ID:
+        await call.message.edit_reply_markup()
+        group_id = call.data.split(';')[0]
+        group = call.data.split(';')[1]
+        what_edit_kb = types.InlineKeyboardMarkup()
+        edit_title_button = types.InlineKeyboardButton(text='Изменить название группы',
+                                                       callback_data='Change_group_name;' + str(group_id) + ';' + group)
+        add_user_button = types.InlineKeyboardButton(text='Добавить пользователя',
+                                                     callback_data='Add_user;' + str(group_id) + ';' + group)
+        del_user_button = types.InlineKeyboardButton(text='Удалить пользователя',
+                                                     callback_data='Del_user;' + str(group_id) + ';' + group)
+        what_edit_kb.add(edit_title_button).add(add_user_button).insert(del_user_button)
+        await call.message.answer('Выберите необходимое действие:',
+                                  reply_markup=what_edit_kb)
+        await FSMEditGroup.choise.set()
+
+
+async def get_element_to_change(call: types.CallbackQuery, state: FSMContext):
+    if call.from_user.id == ID:
+        await call.message.edit_reply_markup()
+        command_list = call.data.split(';')
+        command = command_list[0]
+        group_id = command_list[1]
+        group_name = command_list[2]
+        if command == 'Change_group_name':
+            await call.message.answer('Введите новое название для выбранной группы:')
+
+        elif command == 'Add_user':
+            users_from_all_users_group = await sqlite_db.sql_get_users_group('1')
+            add_user_markup_kb = types.InlineKeyboardMarkup()
+            for user_name, user_id in users_from_all_users_group:
+                inline_btn = types.InlineKeyboardButton(text=user_name,
+                                                        callback_data='Add_user;' + str(user_id) + ';' + user_name)
+                add_user_markup_kb.add(inline_btn)
+            await call.message.answer('Выберите пользователя, которого хотите добавить в группу {group_name}:'
+                                      ''.format(group_name=group_name), reply_markup=add_user_markup_kb)
+            await sqlite_db.sql_add_user_to_group('338356618', group_id)
+
+        else:
+            users_from_group = await sqlite_db.sql_get_users_group(group_id)
+            del_user_markup_kb = types.InlineKeyboardMarkup()
+            for user_name, user_id in users_from_group:
+                inline_btn = types.InlineKeyboardButton(text=user_name,
+                                                        callback_data='Del_user;' + str(user_id) + ';' + user_name)
+                del_user_markup_kb.add(inline_btn)
+            await call.message.answer('Выберите пользователя, которого хотите удалить из группы {group_name}:'
+                                      ''.format(group_name=group_name), reply_markup=del_user_markup_kb)
+            # await sqlite_db.sql_del_user_from_group('338356618')
+
+        await FSMEditGroup.element.set()
+
+        await state.finish()
 
 
 async def refresh_admins(message: types.Message):
@@ -194,18 +269,21 @@ async def get_to_time(message: types.Message, state: FSMContext):
                 for user in data['to_user']:
                     user_id = user.strip('.,;')
                     await bot.send_message(user_id, 'Вы получили новое задание!\n'
-                                              'От пользователя: {from_user}\n'
-                                              'Задание: {task}\n'
-                                              'Время выполнения: {time_delta}ч.'.format(from_user=data['from_user'],
-                                                                                        task=data['task'],
-                                                                                        time_delta=data['to_time']))
+                                                    'От пользователя: {from_user}\n'
+                                                    'Задание: {task}\n'
+                                                    'Время выполнения: {time_delta}ч.'.format(
+                        from_user=data['from_user'],
+                        task=data['task'],
+                        time_delta=data['to_time']))
             else:
                 await bot.send_message(data['to_user'], 'Вы получили новое задание!\n'
-                                                  'От пользователя: {from_user}\n'
-                                                  'Задание: {task}\n'
-                                                  'Время выполнения: {time_delta}ч.'.format(from_user=data['from_user'],
-                                                                                            task=data['task'],
-                                                                                            time_delta=data['to_time']))
+                                                        'От пользователя: {from_user}\n'
+                                                        'Задание: {task}\n'
+                                                        'Время выполнения: {time_delta}ч.'.format(
+                    from_user=data['from_user'],
+                    task=data['task'],
+                    time_delta=data['to_time']))
+        time.sleep(3)
         await state.finish()
 
 
@@ -225,6 +303,10 @@ def register_handler_for_admin(dp: Dispatcher):
     dp.register_message_handler(delete_group, commands=['Удалить_группу'], state=None)
     dp.register_callback_query_handler(get_del_group, state=FSMDelGroup.group_name)
     dp.register_callback_query_handler(get_del_group_confirm, state=FSMDelGroup.confirm)
+
+    dp.register_message_handler(edit_group, commands=['Редактировать_группу'], state=None)
+    dp.register_callback_query_handler(get_edit_group, state=FSMEditGroup.group_name)
+    dp.register_callback_query_handler(get_element_to_change, state=FSMEditGroup.choise)
 
     dp.register_message_handler(add_new_task, commands=['Новое_задание'], state=None)
     dp.register_message_handler(cancel_handler, commands='отмена', state="*")

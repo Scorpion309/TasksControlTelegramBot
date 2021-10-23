@@ -63,6 +63,10 @@ async def sql_add_user_to_db(user_info):
                 ' VALUES (?, ?, ?, ?)', (user_info['id'], user_info['username'], group_id, False))
     base.commit()
 
+async def sql_add_user_to_group(user_id, group_id):
+    cur.execute('UPDATE users SET group_id = ? WHERE user_id = ?', (group_id, user_id))
+    base.commit()
+
 
 async def sql_add_group_to_db(state):
     async with state.proxy() as group:
@@ -103,11 +107,24 @@ async def sql_get_active_tasks():
     return active_tasks
 
 
+async def sql_get_users_group(group_id):
+    cur.execute('SELECT user_name, user_id FROM users WHERE group_id = ?', (group_id, ))
+    users_in_group = cur.fetchall()
+    base.commit()
+    return users_in_group
+
+
 async def sql_get_groups_from_db():
     cur.execute('SELECT group_name, id FROM groups WHERE id NOT IN (1, 2)')
     groups_in_base = cur.fetchall()
     base.commit()
     return groups_in_base
+
+
+async def sql_del_user_from_group(user_id):
+    group_id = 1
+    cur.execute('UPDATE users SET group_id = ? WHERE user_id = ?', (group_id, user_id))
+    base.commit()
 
 
 async def sql_del_user_from_db(user_info):
