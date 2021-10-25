@@ -14,13 +14,13 @@ async def new_member(message):
 # left user from group
 async def left_member(message):
     left_user = message.left_chat_member
-    await sqlite_db.sql_del_user_from_db(left_user)
+    await sqlite_db.sql_del_user_from_db(left_user['id'])
     await bot.send_message(message.chat.id,
                            "Будем рады Вас видеть, {user}! Возвращайтесь!".format(user=left_user['username']))
 
 
 async def echo_send(message: types.Message):
-    await message.reply('message.text')
+    await message.reply('Эта команда мне неизвестна. Пожалуйста, откройте клавиатуру и выберите команду!')
 
 
 def register_handlers_for_other(dp: Dispatcher):

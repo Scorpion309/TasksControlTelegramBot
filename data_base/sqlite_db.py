@@ -63,6 +63,7 @@ async def sql_add_user_to_db(user_info):
                 ' VALUES (?, ?, ?, ?)', (user_info['id'], user_info['username'], group_id, False))
     base.commit()
 
+
 async def sql_add_user_to_group(user_id, group_id):
     cur.execute('UPDATE users SET group_id = ? WHERE user_id = ?', (group_id, user_id))
     base.commit()
@@ -95,20 +96,71 @@ async def sql_add_admins_to_db(admins):
     base.commit()
 
 
-async def sql_get_active_tasks():
-    cur.execute('SELECT to_user_id, user_name, task_title, task, start_time, execute_time  FROM task '
+async def sql_change_group_name(group_id, new_name):
+    cur.execute('UPDATE groups SET group_name = ? WHERE id = ?', (new_name, group_id))
+    base.commit()
+
+
+async def sql_change_task_text(task_id, task_text):
+    cur.execute('UPDATE tasks SET task = ? WHERE id = ?', (task_text, task_id))
+    base.commit()
+
+
+async def sql_get_active_tasks(admin_id):
+    cur.execute('SELECT to_user_id, user_name, task_title, task, start_time, execute_time, task_id  FROM task '
                 'LEFT JOIN users '
                 'ON users.user_id = task.to_user_id '
                 'LEFT JOIN tasks '
                 'ON tasks.id = task.task_id '
-                'WHERE task.active = TRUE;')
+                'WHERE task.active = TRUE '
+                'AND from_user_id = ?;', (admin_id,))
     active_tasks = cur.fetchall()
     base.commit()
     return active_tasks
 
 
-async def sql_get_users_group(group_id):
-    cur.execute('SELECT user_name, user_id FROM users WHERE group_id = ?', (group_id, ))
+async def sql_get_title_tasks():
+    cur.execute('SELECT id, task_title FROM tasks; ')
+    tasks = cur.fetchall()
+    base.commit()
+    return tasks
+
+
+async def sql_get_title_task_by_id(task_id):
+    cur.execute('SELECT task_title FROM tasks WHERE id = ?;', (task_id,))
+    task_title = cur.fetchall()
+    base.commit()
+    return task_title
+
+
+async def sql_get_id_active_tasks(from_user_id):
+    cur.execute('SELECT task_id FROM task '
+                'WHERE task.active = TRUE '
+                'AND from_user_id = ?;', (from_user_id,))
+    active_tasks = cur.fetchall()
+    base.commit()
+    return active_tasks
+
+
+async def sql_get_users_which_have_this_task(task_id):
+    cur.execute('SELECT user_name, user_id FROM users '
+                'LEFT JOIN task '
+                'ON task.to_user_id = users.user_id '
+                'WHERE task_id = ?;', (task_id,))
+    users = cur.fetchall()
+    base.commit()
+    return users
+
+
+async def sql_get_user_from_db_without_admins():
+    cur.execute('SELECT user_name, user_id FROM users WHERE group_id <> 2;')
+    users = cur.fetchall()
+    base.commit()
+    return users
+
+
+async def sql_get_users_from_group(group_id):
+    cur.execute('SELECT user_name, user_id FROM users WHERE group_id = ?', (group_id,))
     users_in_group = cur.fetchall()
     base.commit()
     return users_in_group
@@ -127,13 +179,19 @@ async def sql_del_user_from_group(user_id):
     base.commit()
 
 
-async def sql_del_user_from_db(user_info):
-    cur.execute('DELETE FROM users WHERE user_id = ?', (user_info['id'],))
+async def sql_del_user_from_db(user_id):
+    cur.execute('DELETE FROM users WHERE user_id = ?', (user_id,))
     base.commit()
 
 
-async def sql_del_group_from_db(group_name):
-    cur.execute('DELETE FROM groups WHERE group_name = ?', (group_name,))
+async def sql_del_task_from_db(task_id):
+    cur.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
+    cur.execute('DELETE FROM task WHERE task_id = ?', (task_id,))
+    base.commit()
+
+
+async def sql_del_group_from_db(group_id):
+    cur.execute('DELETE FROM groups WHERE id = ?', (group_id,))
     base.commit()
 
 
