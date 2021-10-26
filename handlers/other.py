@@ -7,8 +7,17 @@ from data_base import sqlite_db
 # new user in group
 async def new_member(message):
     new_user = message.new_chat_members[0]
-    await sqlite_db.sql_add_user_to_db(new_user)
-    await bot.send_message(message.chat.id, "Добро пожаловать, {user}!".format(user=new_user['username']))
+    user_id = new_user['id']
+    if new_user['username']:
+        user_name = new_user['username']
+    elif new_user['first_name']:
+        user_name = new_user['first_name']
+    elif new_user['last_name']:
+        user_name = new_user['last_name']
+    else:
+        user_name = 'Пользователь без имени'
+    await sqlite_db.sql_add_user_to_db(user_id, user_name)
+    await bot.send_message(message.chat.id, "Добро пожаловать, {user}!".format(user=user_name))
 
 
 # left user from group

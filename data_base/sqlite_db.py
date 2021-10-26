@@ -56,11 +56,23 @@ async def sql_add_task_to_db(state):
         base.commit()
 
 
-async def sql_add_user_to_db(user_info):
+async def sql_add_task_to_user(user_id, task_id, from_user_id):
+    cur.execute('INSERT INTO task (to_user_id, task_id, from_user_id, active) VALUES (?, ?, ?, ?)',
+                (user_id, task_id, from_user_id, True))
+    base.commit()
+
+
+async def sql_add_empty_task(task_id, from_user_id):
+    cur.execute('INSERT INTO task (to_user_id, task_id, from_user_id, active) VALUES (?, ?, ?, ?)',
+                (from_user_id, task_id, from_user_id, True))
+    base.commit()
+
+
+async def sql_add_user_to_db(user_id, user_name):
     cur.execute('INSERT OR REPLACE INTO groups (id, group_name) VALUES (1, "All_users")')
     group_id = cur.lastrowid
     cur.execute('INSERT OR REPLACE INTO users (user_id, user_name, group_id, admin)'
-                ' VALUES (?, ?, ?, ?)', (user_info['id'], user_info['username'], group_id, False))
+                ' VALUES (?, ?, ?, ?)', (user_id, user_name, group_id, False))
     base.commit()
 
 
@@ -101,8 +113,18 @@ async def sql_change_group_name(group_id, new_name):
     base.commit()
 
 
+async def sql_change_execute_time_for_task(task_id, execute_time):
+    cur.execute('UPDATE tasks SET execute_time = ? WHERE id = ?', (execute_time, task_id))
+    base.commit()
+
+
 async def sql_change_task_text(task_id, task_text):
     cur.execute('UPDATE tasks SET task = ? WHERE id = ?', (task_text, task_id))
+    base.commit()
+
+
+async def sql_change_task_activity_to_inactive(task_id):
+    cur.execute('UPDATE task SET active = FALSE WHERE task_id = ?', (task_id, ))
     base.commit()
 
 
@@ -119,11 +141,39 @@ async def sql_get_active_tasks(admin_id):
     return active_tasks
 
 
+async def get_task_text(task_id):
+    cur.execute('SELECT task_title FROM tasks WHERE id = ?;', (task_id,))
+    task = cur.fetchall()
+    base.commit()
+    return task
+
+
+async def get_execute_time(task_id):
+    cur.execute('SELECT execute_time FROM tasks WHERE id = ?;', (task_id,))
+    deadline = cur.fetchall()
+    base.commit()
+    return deadline
+
+
 async def sql_get_title_tasks():
     cur.execute('SELECT id, task_title FROM tasks; ')
     tasks = cur.fetchall()
     base.commit()
     return tasks
+
+
+async def sql_get_task_data(task_id):
+    cur.execute('SELECT task_title, task, execute_time FROM tasks WHERE id = ?;', (task_id,))
+    task_data = cur.fetchall()
+    base.commit()
+    return task_data
+
+
+async def sql_get_user_name(user_id):
+    cur.execute('SELECT user_name FROM users WHERE user_id = ?;', (user_id,))
+    user_name = cur.fetchall()
+    base.commit()
+    return user_name
 
 
 async def sql_get_title_task_by_id(task_id):
@@ -134,9 +184,12 @@ async def sql_get_title_task_by_id(task_id):
 
 
 async def sql_get_id_active_tasks(from_user_id):
-    cur.execute('SELECT task_id FROM task '
+    cur.execute('SELECT task_id, task_title FROM tasks '
+                'LEFT JOIN task '
+                'ON tasks.id = task.task_id '
                 'WHERE task.active = TRUE '
-                'AND from_user_id = ?;', (from_user_id,))
+                'AND from_user_id = ?'
+                'GROUP BY task_title;', (from_user_id,))
     active_tasks = cur.fetchall()
     base.commit()
     return active_tasks
@@ -150,6 +203,18 @@ async def sql_get_users_which_have_this_task(task_id):
     users = cur.fetchall()
     base.commit()
     return users
+
+
+async def sql_get_groups_from_which_users_have_this_task(task_id):
+    cur.execute('SELECT group_name, group_id FROM users '
+                'LEFT JOIN task '
+                'ON task.to_user_id = users.user_id '
+                'LEFT JOIN groups '
+                'ON groups.id = users.group_id '
+                'WHERE task_id = ?;', (task_id,))
+    groups = cur.fetchall()
+    base.commit()
+    return groups
 
 
 async def sql_get_user_from_db_without_admins():
@@ -187,6 +252,17 @@ async def sql_del_user_from_db(user_id):
 async def sql_del_task_from_db(task_id):
     cur.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
     cur.execute('DELETE FROM task WHERE task_id = ?', (task_id,))
+    base.commit()
+
+
+async def sql_del_task_from_user(task_id, user_id):
+    cur.execute('DELETE FROM task WHERE task_id = ? AND to_user_id = ?', (task_id, user_id))
+    base.commit()
+
+
+def sql_del_empty_task_if_there_is(task_id, user_id):
+    cur.execute('DELETE FROM task WHERE task_id = ? AND to_user_id = ? AND from_user_id = ?',
+                (task_id, user_id, user_id))
     base.commit()
 
 
