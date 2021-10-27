@@ -52,7 +52,8 @@ class FSMEditTask(StatesGroup):
 # Is the user administrator?
 # command=['moderator'], is_chat_admin=True
 async def make_changes_command(message: types.Message):
-    global ID
+    global ID, GROUP_ID
+    GROUP_ID = message.chat.id
     ID = message.from_user.id
     await bot.send_message(message.from_user.id, 'Что надо, хозяин???', reply_markup=admin_kb.kb_admin)
     await message.delete()
@@ -80,7 +81,7 @@ async def delete_group(message: types.Message):
         groups_in_db = await sqlite_db.sql_get_groups_from_db()
         del_group_markup_kb = types.InlineKeyboardMarkup()
         for group, id_group in groups_in_db:
-            inline_btn = types.InlineKeyboardButton(text=group, callback_data=str(id_group) + ';' + group)
+            inline_btn = types.InlineKeyboardButton(text=group, callback_data=f'{str(id_group)};{group}')
             del_group_markup_kb.add(inline_btn)
         await message.reply('Выберите группу, которую хотите удалить:', reply_markup=del_group_markup_kb)
         await FSMDelGroup.group_name.set()
@@ -117,7 +118,7 @@ async def get_del_group_confirm(call: types.CallbackQuery, state: FSMContext):
                 for user_name, user_id in users_in_group:
                     await sqlite_db.sql_del_user_from_group(user_id)
                 await sqlite_db.sql_del_group_from_db(group_id)
-                await call.message.answer(f'Группа {group_name} успешно удалена из базы.')
+                await call.message.answer(f'Группа "{group_name}" успешно удалена из базы.')
         await state.finish()
 
 
@@ -127,10 +128,9 @@ async def edit_group(message: types.Message):
         if groups_in_db:
             edit_group_markup_kb = types.InlineKeyboardMarkup()
             for group, group_id in groups_in_db:
-                inline_btn = types.InlineKeyboardButton(text=group, callback_data=str(group_id) + ';' + group)
+                inline_btn = types.InlineKeyboardButton(text=group, callback_data=f'{str(group_id)};{group}')
                 edit_group_markup_kb.insert(inline_btn)
-            await message.reply('Выберите группу, которую хотите отредактировать:',
-                                reply_markup=edit_group_markup_kb)
+            await message.reply('Выберите группу, которую хотите отредактировать:', reply_markup=edit_group_markup_kb)
             await FSMEditGroup.group_name.set()
         else:
             await message.reply('Невозможно выполнить команду. В базе отсутствуют группы. Попробуйте создать новую.')
@@ -139,86 +139,79 @@ async def edit_group(message: types.Message):
 async def get_edit_group(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id == ID:
         await call.message.edit_reply_markup()
-        group_id = call.data.split(';')[0]
-        group = call.data.split(';')[1]
+        group_info = call.data.split(';')
+        group_id = group_info[0]
+        group_name = group_info[1]
         what_edit_kb = types.InlineKeyboardMarkup()
         edit_title_button = types.InlineKeyboardButton(text='Изменить название группы',
-                                                       callback_data='Change_group_name;' + str(group_id) + ';' + group)
-        look_for_user_button = types.InlineKeyboardButton(text='Просмотреть список пользователей',
-                                                          callback_data='Look_for_user;' + str(group_id) + ';' + group)
-        add_user_button = types.InlineKeyboardButton(text='Добавить пользователя',
-                                                     callback_data='Add_user;' + str(group_id) + ';' + group)
-        del_user_button = types.InlineKeyboardButton(text='Удалить пользователя',
-                                                     callback_data='Del_user;' + str(group_id) + ';' + group)
-        what_edit_kb.add(edit_title_button).add(look_for_user_button).add(add_user_button).insert(del_user_button)
-        await call.message.answer('Выберите необходимое действие:',
-                                  reply_markup=what_edit_kb)
+                                                       callback_data='Change_group_name')
+        look_users_button = types.InlineKeyboardButton(text='Просмотреть список пользователей',
+                                                       callback_data='Look_users')
+        add_user_button = types.InlineKeyboardButton(text='Добавить пользователя', callback_data='Add_user')
+        del_user_button = types.InlineKeyboardButton(text='Удалить пользователя', callback_data='Del_user')
+        what_edit_kb.add(edit_title_button).add(look_users_button).add(add_user_button).insert(del_user_button)
+        await call.message.answer('Выберите необходимое действие:', reply_markup=what_edit_kb)
+        async with state.proxy() as data:
+            data['group_id'] = group_id
+            data['group_name'] = group_name
         await FSMEditGroup.choice.set()
 
 
 async def get_element_to_change(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id == ID:
         await call.message.edit_reply_markup()
-        command_list = call.data.split(';')
-        command = command_list[0]
-        group_id = command_list[1]
-        group_name = command_list[2]
+        command = call.data
         if command == 'Change_group_name':
             await call.message.answer('Введите новое название для выбранной группы:')
-            async with state.proxy() as data:
-                data['group_id'] = group_id
         elif command == 'Add_user':
             users_from_all_users_group = await sqlite_db.sql_get_users_from_group('1')
             if users_from_all_users_group:
                 add_user_markup_kb = types.InlineKeyboardMarkup()
                 for user_name, user_id in users_from_all_users_group:
-                    inline_btn = types.InlineKeyboardButton(text=user_name,
-                                                            callback_data='Add_user;' +
-                                                                          str(group_id) + ';' + group_name +
-                                                                          ';' + str(user_id) + ';' + user_name)
+                    inline_btn = types.InlineKeyboardButton(text=user_name, callback_data=f'Add_user;'
+                                                                                          f'{str(user_id)};{user_name}')
                     add_user_markup_kb.row(inline_btn)
-                await call.message.answer('Выберите пользователя, которого хотите добавить в группу {group_name}:'
-                                          ''.format(group_name=group_name), reply_markup=add_user_markup_kb)
+                await call.message.answer(f'Выберите пользователя, которого хотите добавить в группу:',
+                                          reply_markup=add_user_markup_kb)
             else:
                 await call.message.answer('Нет пользователей, которых можно было бы добавить в группу.')
                 await state.finish()
                 return
         else:
-            users_from_group = await sqlite_db.sql_get_users_from_group(group_id)
-            if users_from_group:
-                if command == 'Look_for_user':
-                    users = ''
-                    for user_name, _ in users_from_group:
-                        users = users + user_name + '; '
-                    await call.message.answer(users)
+            async with state.proxy() as data:
+                group_id = data['group_id']
+                users_from_group = await sqlite_db.sql_get_users_from_group(group_id)
+                if users_from_group:
+                    if command == 'Look_users':
+                        users = ''
+                        for user_name, _ in users_from_group:
+                            users = users + user_name + '; '
+                        await call.message.answer(users)
+                        await state.finish()
+                        return
+                    else:
+                        del_user_markup_kb = types.InlineKeyboardMarkup()
+                        for user_name, user_id in users_from_group:
+                            inline_btn = types.InlineKeyboardButton(text=user_name,
+                                                                    callback_data=f'Del_user;{str(user_id)};'
+                                                                                  f'{user_name}')
+                            del_user_markup_kb.add(inline_btn)
+                        await call.message.answer(f'Выберите пользователя, которого хотите удалить из группы:',
+                                                  reply_markup=del_user_markup_kb)
+                else:
+                    await call.message.answer('В группе нет пользователей.')
                     await state.finish()
                     return
-                else:
-                    del_user_markup_kb = types.InlineKeyboardMarkup()
-                    for user_name, user_id in users_from_group:
-                        inline_btn = types.InlineKeyboardButton(text=user_name,
-                                                                callback_data='Del_user;' + str(group_id) +
-                                                                              ';' + group_name +
-                                                                              ';' + str(user_id) + ';' + user_name)
-                        del_user_markup_kb.add(inline_btn)
-                    await call.message.answer('Выберите пользователя, которого хотите удалить из группы {group_name}:'
-                                              ''.format(group_name=group_name), reply_markup=del_user_markup_kb)
-            else:
-                await call.message.answer('В группе нет пользователей.')
-                await state.finish()
-                return
         await FSMEditGroup.element.set()
 
 
 async def change_group_name(message: types.Message, state: FSMContext):
     if message.from_user.id == ID:
+        new_name = message.text
         async with state.proxy() as data:
-            data['new_name'] = message.text
-            new_name = message.text
             group_id = data['group_id']
             await sqlite_db.sql_change_group_name(group_id, new_name)
-            await bot.send_message(message.from_user.id, 'Название группы успешно изменено на {group_name}'
-                                                         ''.format(group_name=new_name))
+            await bot.send_message(message.from_user.id, f'Название группы успешно изменено на "{new_name}".')
         await state.finish()
 
 
@@ -227,18 +220,17 @@ async def change_group(call: types.CallbackQuery, state: FSMContext):
         await call.message.edit_reply_markup()
         command_list = call.data.split(';')
         command = command_list[0]
-        group_id = command_list[1]
-        group_name = command_list[2]
-        user_id = command_list[3]
-        user_name = command_list[4]
-        if command == 'Add_user':
-            await sqlite_db.sql_add_user_to_group(user_id, group_id)
-            await call.message.answer('Пользователь {user_name} успешно добавлен в группу {group_name}.'
-                                      ''.format(group_name=group_name, user_name=user_name))
-        else:
-            await sqlite_db.sql_del_user_from_group(user_id)
-            await call.message.answer('Пользователь {user_name} успешно удален из группы {group_name}.'
-                                      ''.format(group_name=group_name, user_name=user_name))
+        user_id = command_list[1]
+        user_name = command_list[2]
+        async with state.proxy() as data:
+            group_id = data['group_id']
+            group_name = data['group_name']
+            if command == 'Add_user':
+                await sqlite_db.sql_add_user_to_group(user_id, group_id)
+                await call.message.answer(f'Пользователь {user_name} успешно добавлен в группу {group_name}.')
+            else:
+                await sqlite_db.sql_del_user_from_group(user_id)
+                await call.message.answer(f'Пользователь {user_name} успешно удален из группы {group_name}.')
         await state.finish()
 
 
