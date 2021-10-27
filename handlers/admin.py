@@ -11,6 +11,7 @@ from create_bot import bot
 from data_base import sqlite_db
 from exceptions import my_exceptions
 from keyboards import admin_kb
+from my_utils import messages
 from my_utils import utils
 
 ID = None
@@ -350,7 +351,7 @@ async def get_to_time(message: types.Message, state: FSMContext):
                                                         f'Задание: {task}\n\n'
                                                         f'Время выполнения: {time_delta}ч.')
                     except Exception:
-                        await my_exceptions.send_link_to_user_for_chat_from_admin(message.from_user.id)
+                        await my_exceptions.send_user_link_for_chat_to_admin(message.from_user.id)
             else:
                 try:
                     await bot.send_message(data['to_user'], f'Вы получили новое задание: "{task_title}"!\n\n'
@@ -358,7 +359,7 @@ async def get_to_time(message: types.Message, state: FSMContext):
                                                             f'Задание: {task}\n\n'
                                                             f'Время выполнения: {time_delta}ч.')
                 except Exception:
-                    await my_exceptions.send_link_to_user_for_chat_from_admin(message.from_user.id)
+                    await my_exceptions.send_user_link_for_chat_to_admin(message.from_user.id)
         time.sleep(3)
         await state.finish()
 
@@ -382,17 +383,16 @@ async def edit_task(message: types.Message):
 async def choice_action_to_task(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id == ID:
         await call.message.edit_reply_markup()
-        task_id = call.data.split(';')[0]
-        task_title = call.data.split(';')[1]
+        task_info = call.data.split(';')
+        async with state.proxy() as data:
+            data['task_id'] = task_info[0]
+            data['task_title'] = task_info[1]
         which_action_kb = types.InlineKeyboardMarkup()
-        edit_task_button = types.InlineKeyboardButton(text='Изменить задание',
-                                                      callback_data=f'Edit_task;{task_id};{task_title}')
-        del_task_button = types.InlineKeyboardButton(text='Удалить задание',
-                                                     callback_data=f'Del_task;{task_id};{task_title}')
-        change_recipient_button = types.InlineKeyboardButton(text='Изменить получателя',
-                                                             callback_data=f'Edit_users;{task_id};{task_title}')
+        edit_task_button = types.InlineKeyboardButton(text='Изменить задание', callback_data=f'Edit_task')
+        del_task_button = types.InlineKeyboardButton(text='Удалить задание', callback_data=f'Del_task')
+        change_recipient_button = types.InlineKeyboardButton(text='Изменить получателя', callback_data=f'Edit_users')
         change_execute_time_button = types.InlineKeyboardButton(text='Изменить срок выполнения задания',
-                                                                callback_data=f'Edit_data;{task_id};{task_title}')
+                                                                callback_data=f'Edit_data')
         which_action_kb.insert(edit_task_button).insert(del_task_button)
         which_action_kb.insert(change_recipient_button).insert(change_execute_time_button)
         await call.message.answer('Выберите необходимое действие:', reply_markup=which_action_kb)
@@ -402,41 +402,31 @@ async def choice_action_to_task(call: types.CallbackQuery, state: FSMContext):
 async def process_chosen_action_to_task(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id == ID:
         await call.message.edit_reply_markup()
-        command_list = call.data.split(';')
-        command = command_list[0]
-        task_id = command_list[1]
-        task_title = command_list[2]
+        command = call.data
         if command == 'Edit_task':
             await call.message.answer('Введите новый текст для задания:')
-            async with state.proxy() as data:
-                data['task_id'] = task_id
             await FSMEditTask.element.set()
         elif command == 'Del_task':
             confirm_delete_kb = types.InlineKeyboardMarkup()
-            confirm_button = types.InlineKeyboardButton(text='Да', callback_data=str(task_id))
+            confirm_button = types.InlineKeyboardButton(text='Да', callback_data='Yes')
             cancel_button = types.InlineKeyboardButton(text='Отмена', callback_data='Cancel')
             confirm_delete_kb.add(confirm_button).insert(cancel_button)
-            await call.message.answer('Вы действительно хотите удалить задание: {task_title}?'
-                                      ''.format(task_title=task_title), reply_markup=confirm_delete_kb)
+            await call.message.answer('Вы действительно хотите удалить задание?', reply_markup=confirm_delete_kb)
             await FSMEditTask.del_confirm.set()
         elif command == 'Edit_users':
             edit_user_kb = types.InlineKeyboardMarkup()
             add_user_button = types.InlineKeyboardButton(text='Добавить задание пользователю',
-                                                         callback_data=f'Add_task_to_user;{task_id};{task_title}')
+                                                         callback_data=f'Add_task_to_user')
             del_user_button = types.InlineKeyboardButton(text='Удалить задание у пользователя',
-                                                         callback_data=f'Del_task_from_user;{task_id};{task_title}')
+                                                         callback_data=f'Del_task_from_user')
             add_to_group_button = types.InlineKeyboardButton(text='Добавить задание группе пользователей',
-                                                             callback_data=f'Add_task_to_user_group;{task_id};'
-                                                                           f'{task_title}')
+                                                             callback_data=f'Add_task_to_user_group')
             del_from_group_button = types.InlineKeyboardButton(text='Удалить задание у группы пользователей',
-                                                               callback_data=f'Del_task_from_user_group;{task_id};'
-                                                                             f'{task_title}')
+                                                               callback_data=f'Del_task_from_user_group')
             edit_user_kb.add(add_user_button).add(del_user_button).add(add_to_group_button).add(del_from_group_button)
             await call.message.answer('Выберите необходимое действие:', reply_markup=edit_user_kb)
             await FSMEditTask.change_recipient.set()
         else:
-            async with state.proxy() as data:
-                data['task_id'] = task_id
             await call.message.answer('Выберите дату:', reply_markup=await SimpleCalendar().start_calendar())
             await FSMEditTask.date.set()
 
@@ -464,22 +454,17 @@ async def get_change_time(message: types.Message, state: FSMContext):
 
 async def change_task_text(message: types.Message, state: FSMContext):
     if message.from_user.id == ID:
+        new_text = message.text
         async with state.proxy() as data:
-            data['new_text'] = message.text
-            new_text = message.text
+            data['new_text'] = new_text
             task_id = data['task_id']
             users_which_have_task = await sqlite_db.sql_get_users_which_have_this_task(task_id)
-            task_title = await sqlite_db.sql_get_title_task_by_id(task_id)
-            task_title = task_title[0][0]
+            task_title = data['task_title']
             await sqlite_db.sql_change_task_text(task_id, new_text)
             await bot.send_message(message.from_user.id, 'Задание успешно изменено.')
             if users_which_have_task:
                 for user_name, user_id in users_which_have_task:
-                    try:
-                        await bot.send_message(user_id, f'Задание "{task_title}" было изменено отправителем.'
-                                                        f' Проверьте задание!')
-                    except Exception:
-                        await my_exceptions.send_link_to_user_for_chat_from_admin(message.from_user.id)
+                    await messages.message_to_user_change_task(user_id, ID, task_title)
         await state.finish()
 
 
@@ -489,90 +474,85 @@ async def del_task(call: types.CallbackQuery, state: FSMContext):
         if call.data == 'Cancel':
             await call.message.answer('Удаление задания отменено.')
         else:
-            task_id = call.data
-            users_which_have_task = await sqlite_db.sql_get_users_which_have_this_task(task_id)
-            task_title = await sqlite_db.sql_get_title_task_by_id(task_id)
-            task_title = task_title[0][0]
-            await sqlite_db.sql_del_task_from_db(task_id)
+            async with state.proxy() as data:
+                task_id = data['task_id']
+                task_title = data['task_title']
+                users_which_have_task = await sqlite_db.sql_get_users_which_have_this_task(task_id)
+                await sqlite_db.sql_del_task_from_db(task_id)
+                if users_which_have_task:
+                    for user_name, user_id in users_which_have_task:
+                        await messages.message_to_user_delete_task(user_id, ID, task_title)
             await call.message.answer('Задание успешно удалено из базы')
-            if users_which_have_task:
-                for user_name, user_id in users_which_have_task:
-                    try:
-                        await bot.send_message(user_id, f'Задание "{task_title}" было удалено отправителем.')
-                    except Exception:
-                        await my_exceptions.send_link_to_user_for_chat_from_admin(call.from_user.id, user_id)
         await state.finish()
 
 
 async def edit_recipients_for_task(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id == ID:
         await call.message.edit_reply_markup()
-        command_list = call.data.split(';')
-        command = command_list[0]
-        task_id = command_list[1]
-        task_title = command_list[2]
-        if command == 'Add_task_to_user':
-            users_from_db_which_have_task = set(await sqlite_db.sql_get_users_which_have_this_task(task_id))
-            all_user_from_db = set(await sqlite_db.sql_get_user_from_db_without_admins())
-            users_for_add = all_user_from_db.difference(users_from_db_which_have_task)
-            if users_for_add:
-                add_user_markup_kb = types.InlineKeyboardMarkup()
-                for user_name, user_id in users_for_add:
-                    inline_btn = types.InlineKeyboardButton(text=user_name, callback_data=f'Add_to_user;'
-                                                                                          f'{user_id};{task_id}')
-                    add_user_markup_kb.insert(inline_btn)
-                await call.message.answer(f'Выберите пользователя, которому хотите отправить задание "{task_title}":',
-                                          reply_markup=add_user_markup_kb)
-                await FSMEditTask.users.set()
+        command = call.data
+        async with state.proxy() as data:
+            task_id = data['task_id']
+            if command == 'Add_task_to_user':
+                users_from_db_which_have_task = set(await sqlite_db.sql_get_users_which_have_this_task(task_id))
+                all_user_from_db = set(await sqlite_db.sql_get_user_from_db_without_admins())
+                users_for_add = all_user_from_db.difference(users_from_db_which_have_task)
+                if users_for_add:
+                    add_user_markup_kb = types.InlineKeyboardMarkup()
+                    for user_name, user_id in users_for_add:
+                        inline_btn = types.InlineKeyboardButton(text=user_name, callback_data=f'Add_to_user;{user_id}')
+                        add_user_markup_kb.insert(inline_btn)
+                    await call.message.answer(f'Выберите пользователя, которому хотите отправить задание:',
+                                              reply_markup=add_user_markup_kb)
+                    await FSMEditTask.users.set()
+                else:
+                    await call.message.answer('Нет пользователей, которым можно отправить задание.')
+                    await state.finish()
+                    return
+            elif command == 'Del_task_from_user':
+                users_from_db_which_have_task = set(await sqlite_db.sql_get_users_which_have_this_task(task_id))
+                if users_from_db_which_have_task:
+                    del_user_markup_kb = types.InlineKeyboardMarkup()
+                    for user_name, user_id in users_from_db_which_have_task:
+                        inline_btn = types.InlineKeyboardButton(text=user_name, callback_data=f'Del_from_user;'
+                                                                                              f'{user_id}')
+                        del_user_markup_kb.insert(inline_btn)
+                    await call.message.answer(f'Выберите пользователя у которого хотите удалить задание:',
+                                              reply_markup=del_user_markup_kb)
+                    await FSMEditTask.users.set()
+                else:
+                    await call.message.answer('Нет пользователей, у которых можно удалить задание.')
+                    await state.finish()
+                    return
+            elif command == 'Add_task_to_user_group':
+                groups_from_db = await sqlite_db.sql_get_groups_from_db()
+                if groups_from_db:
+                    add_to_group_markup_kb = types.InlineKeyboardMarkup()
+                    for group_name, group_id in groups_from_db:
+                        inline_btn = types.InlineKeyboardButton(text=group_name, callback_data=f'Add_to_group;'
+                                                                                               f'{group_id}')
+                        add_to_group_markup_kb.insert(inline_btn)
+                    await call.message.answer(f'Выберите группу, в которую хотите отправить задание:',
+                                              reply_markup=add_to_group_markup_kb)
+                    await FSMEditTask.users.set()
+                else:
+                    await call.message.answer('Нет групп, которым можно добавить задание.')
+                    await state.finish()
+                    return
             else:
-                await call.message.answer('Нет пользователей, которым можно отправить задание.')
-                await state.finish()
-                return
-        elif command == 'Del_task_from_user':
-            users_from_db_which_have_task = set(await sqlite_db.sql_get_users_which_have_this_task(task_id))
-            if users_from_db_which_have_task:
-                del_user_markup_kb = types.InlineKeyboardMarkup()
-                for user_name, user_id in users_from_db_which_have_task:
-                    inline_btn = types.InlineKeyboardButton(text=user_name, callback_data=f'Del_from_user;'
-                                                                                          f'{user_id};{task_id}')
-                    del_user_markup_kb.insert(inline_btn)
-                await call.message.answer(f'Выберите пользователя у которого хотите удалить задание "{task_title}":',
-                                          reply_markup=del_user_markup_kb)
-                await FSMEditTask.users.set()
-            else:
-                await call.message.answer('Нет пользователей, у которых можно удалить задание.')
-                await state.finish()
-                return
-        elif command == 'Add_task_to_user_group':
-            groups_from_db = await sqlite_db.sql_get_groups_from_db()
-            if groups_from_db:
-                add_to_group_markup_kb = types.InlineKeyboardMarkup()
-                for group_name, group_id in groups_from_db:
-                    inline_btn = types.InlineKeyboardButton(text=group_name, callback_data=f'Add_to_group;'
-                                                                                           f'{group_id};{task_id}')
-                    add_to_group_markup_kb.insert(inline_btn)
-                await call.message.answer(f'Выберите группу, в которую хотите отправить задание "{task_title}":',
-                                          reply_markup=add_to_group_markup_kb)
-                await FSMEditTask.users.set()
-            else:
-                await call.message.answer('Нет групп, которым можно добавить задание.')
-                await state.finish()
-                return
-        else:
-            groups_with_users = set(await sqlite_db.sql_get_groups_from_which_users_have_this_task(task_id))
-            if groups_with_users:
-                del_from_group_markup_kb = types.InlineKeyboardMarkup()
-                for group_name, group_id in groups_with_users:
-                    inline_btn = types.InlineKeyboardButton(text=group_name, callback_data=f'Del_from_group;'
-                                                                                           f'{group_id};{task_id}')
-                    del_from_group_markup_kb.insert(inline_btn)
-                await call.message.answer(f'Выберите группу, из которой хотите удалить задание "{task_title}":',
-                                          reply_markup=del_from_group_markup_kb)
-                await FSMEditTask.users.set()
-            else:
-                await call.message.answer('Нет таких групп.')
-                await state.finish()
-                return
+                groups_with_users = set(await sqlite_db.sql_get_groups_from_which_users_have_this_task(task_id))
+                if groups_with_users:
+                    del_from_group_markup_kb = types.InlineKeyboardMarkup()
+                    for group_name, group_id in groups_with_users:
+                        inline_btn = types.InlineKeyboardButton(text=group_name, callback_data=f'Del_from_group;'
+                                                                                               f'{group_id}')
+                        del_from_group_markup_kb.insert(inline_btn)
+                    await call.message.answer(f'Выберите группу, из которой хотите удалить задание:',
+                                              reply_markup=del_from_group_markup_kb)
+                    await FSMEditTask.users.set()
+                else:
+                    await call.message.answer('Нет таких групп.')
+                    await state.finish()
+                    return
 
 
 async def change_task(call: types.CallbackQuery, state: FSMContext):
@@ -580,53 +560,53 @@ async def change_task(call: types.CallbackQuery, state: FSMContext):
         await call.message.edit_reply_markup()
         command_list = call.data.split(';')
         command = command_list[0]
-        task_id = command_list[2]
         from_user = call.from_user.username
-        task_data = await sqlite_db.sql_get_task_data(task_id)
-        task_title = task_data[0][0]
-        task = task_data[0][1]
-        deadline_time = task_data[0][2]
         now_time = datetime.now().replace(microsecond=0)
-        deadline_time = datetime.strptime(deadline_time, '%Y-%m-%d %H:%M:%S')
-        time_delta = deadline_time - now_time
+        async with state.proxy() as data:
+            task_id = data['task_id']
+            task_data = await sqlite_db.sql_get_task_data(task_id)
+            task_title = task_data[0][0]
+            task = task_data[0][1]
+            deadline_time = datetime.strptime(task_data[0][2], '%Y-%m-%d %H:%M:%S')
+            time_delta = deadline_time - now_time
 
-        if command == 'Add_to_user':
-            user_id = command_list[1]
-            await utils.add_task_to_user(user_id, task_id, from_user, ID, task_title, task, time_delta)
-            await call.message.reply(f'Задание "{task_title}" успешно отправлено пользователю.')
-        elif command == 'Del_from_user':
-            user_id = command_list[1]
-            await utils.del_task_from_user(user_id, task_id, from_user, ID, task_title)
-            await call.message.reply(f'Задание "{task_title}" успешно удалено у пользователя.')
-            users = await sqlite_db.sql_get_users_which_have_this_task(task_id)
-            #  if there are no users who have this task -> add empty task to find it later.
-            if not users:
-                await sqlite_db.sql_add_empty_task(task_id, ID)
-        else:
-            group_id = command_list[1]
-            users_from_group = set(await sqlite_db.sql_get_users_from_group(group_id))
-            users_which_have_this_task = set(await sqlite_db.sql_get_users_which_have_this_task(task_id))
-            if command == 'Add_to_group':
-                users_from_group = users_from_group - users_which_have_this_task
-                if users_from_group:
-                    for user_name, user_id in users_from_group:
-                        await utils.add_task_to_user(user_id, task_id, from_user, ID, task_title, task, time_delta)
-                    await call.message.reply(f'Задание "{task_title}" успешно отправлено пользователям группы.')
-                else:
-                    await call.message.reply('В группе все пользователи уже получили это задание,'
-                                             ' либо пользователи отсутствуют вовсе.')
+            if command == 'Add_to_user':
+                user_id = command_list[1]
+                await utils.add_task_to_user(user_id, task_id, from_user, ID, task_title, task, time_delta)
+                await call.message.reply(f'Задание "{task_title}" успешно отправлено пользователю.')
+            elif command == 'Del_from_user':
+                user_id = command_list[1]
+                await utils.del_task_from_user(user_id, task_id, ID, task_title)
+                await call.message.reply(f'Задание "{task_title}" успешно удалено у пользователя.')
+                users = await sqlite_db.sql_get_users_which_have_this_task(task_id)
+                #  if there are no users who have this task -> add empty task to find it later.
+                if not users:
+                    await sqlite_db.sql_add_empty_task(task_id, ID)
             else:
-                users_from_group = users_from_group & users_which_have_this_task
-                if users_from_group:
-                    for user_name, user_id in users_which_have_this_task:
-                        await utils.del_task_from_user(user_id, task_id, from_user, ID, task_title)
-                    users = await sqlite_db.sql_get_users_which_have_this_task(task_id)
-                    # if there are no users who have this task -> add empty task to find it later.
-                    if not users:
-                        await sqlite_db.sql_add_empty_task(task_id, ID)
+                group_id = command_list[1]
+                users_from_group = set(await sqlite_db.sql_get_users_from_group(group_id))
+                users_which_have_this_task = set(await sqlite_db.sql_get_users_which_have_this_task(task_id))
+                if command == 'Add_to_group':
+                    users_from_group = users_from_group - users_which_have_this_task
+                    if users_from_group:
+                        for user_name, user_id in users_from_group:
+                            await utils.add_task_to_user(user_id, task_id, from_user, ID, task_title, task, time_delta)
+                        await call.message.reply(f'Задание "{task_title}" успешно отправлено пользователям группы.')
+                    else:
+                        await call.message.reply('В группе все пользователи уже получили это задание,'
+                                                 ' либо пользователи отсутствуют вовсе.')
                 else:
-                    await call.message.reply('В выбранной группе нет пользователей с таким заданием.')
-        await state.finish()
+                    users_from_group = users_from_group & users_which_have_this_task
+                    if users_from_group:
+                        for user_name, user_id in users_which_have_this_task:
+                            await utils.del_task_from_user(user_id, task_id, ID, task_title)
+                        users = await sqlite_db.sql_get_users_which_have_this_task(task_id)
+                        # if there are no users who have this task -> add empty task to find it later.
+                        if not users:
+                            await sqlite_db.sql_add_empty_task(task_id, ID)
+                    else:
+                        await call.message.reply('В выбранной группе нет пользователей с таким заданием.')
+            await state.finish()
 
 
 # Registering handlers

@@ -1,24 +1,18 @@
-from create_bot import bot
 from data_base import sqlite_db
-from exceptions import my_exceptions
+from my_utils import messages
+
 
 async def add_task_to_user(user_id, task_id, from_user, from_user_id, task_title, task, time_delta):
+    # adding task to user
     await sqlite_db.sql_add_task_to_user(user_id, task_id, from_user_id)
     # if this task was empty before adding -> delete empty task
     sqlite_db.sql_del_empty_task_if_there_is(task_id, from_user_id)
-    try:
-        await bot.send_message(user_id, f'Вы получили новое задание: "{task_title}"!\n'
-                                        f'От пользователя: {from_user}\n\n'
-                                        f'Задание: {task}\n\n'
-                                        f'До конца срока выполнения осталось: {time_delta}.')
-    except Exception:
-        await my_exceptions.send_link_to_user_for_chat_from_admin(from_user_id, user_id)
+    # sending message to user who got new task
+    await messages.message_to_user_new_task(user_id, from_user, from_user_id, task_title, task, time_delta)
 
 
-async def del_task_from_user(user_id, task_id, from_user, from_user_id, task_title):
+async def del_task_from_user(user_id, task_id, from_user_id, task_title):
+    # deleting task from user
     await sqlite_db.sql_del_task_from_user(task_id, user_id)
-    try:
-        await bot.send_message(user_id, f'Задание: "{task_title}"!\nбыло удалено пользователем: {from_user}')
-    except Exception:
-        await my_exceptions.send_link_to_user_for_chat_from_admin(from_user_id, user_id)
-
+    # sending message to user who had this task
+    await messages.message_to_user_delete_task(user_id, from_user_id, task_title)
