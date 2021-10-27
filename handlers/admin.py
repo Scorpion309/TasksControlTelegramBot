@@ -413,13 +413,18 @@ async def process_simple_calendar(call: types.CallbackQuery, callback_data: dict
 
 @utils.check_access_message
 async def get_change_time(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        data['hours'] = message.text
-        task_id = data['task_id']
-        deadline_time = datetime.strptime(f'{data["date"]} {data["hours"]}:00', '%Y-%m-%d %H:%M:%S')
-        await sqlite_db.sql_change_execute_time_for_task(task_id, deadline_time)
-    await message.reply('Срок выполнения задания изменен.')
-    await state.finish()
+    if await utils.check_time(message.text):
+        time = await utils.check_time(message.text)
+        async with state.proxy() as data:
+            data['hours'] = time
+            task_id = data['task_id']
+            deadline_time = datetime.strptime(f'{data["date"]} {data["hours"]}', '%Y-%m-%d %H:%M:%S')
+            await sqlite_db.sql_change_execute_time_for_task(task_id, deadline_time)
+        await message.reply('Срок выполнения задания изменен.')
+        await state.finish()
+    else:
+        await message.reply(f'Вы допустили ошибку! Введите время в формате: HH:MM')
+        await FSMEditTask.time.set()
 
 
 @utils.check_access_message
