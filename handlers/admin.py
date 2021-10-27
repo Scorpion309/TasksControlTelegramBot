@@ -71,7 +71,8 @@ async def active_tasks_show(message: types.Message):
             task_title = task[2]
             task_text = task[3]
             to_user = task[1]
-            await messages.message_print_tasks_for_sender(message.from_user.id, task_title, to_user, task_text, time_delta)
+            await messages.message_print_tasks_for_sender(message.from_user.id, task_title, to_user, task_text,
+                                                          time_delta)
 
 
 async def delete_group(message: types.Message):
@@ -81,21 +82,25 @@ async def delete_group(message: types.Message):
         for group, id_group in groups_in_db:
             inline_btn = types.InlineKeyboardButton(text=group, callback_data=str(id_group) + ';' + group)
             del_group_markup_kb.add(inline_btn)
-        await message.reply('Выберите группу, которую хотите удалить:',
-                            reply_markup=del_group_markup_kb)
+        await message.reply('Выберите группу, которую хотите удалить:', reply_markup=del_group_markup_kb)
         await FSMDelGroup.group_name.set()
 
 
 async def get_del_group(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id == ID:
         await call.message.edit_reply_markup()
+        group_info = call.data.split(';')
+        group_id = group_info[0]
+        group_name = group_info[1]
         confirm_delete_kb = types.InlineKeyboardMarkup()
-        confirm_button = types.InlineKeyboardButton(text='Да', callback_data=call.data)
+        confirm_button = types.InlineKeyboardButton(text='Да', callback_data='Yes')
         cancel_button = types.InlineKeyboardButton(text='Отмена', callback_data='Cancel')
         confirm_delete_kb.add(confirm_button).insert(cancel_button)
-        group_name = call.data.split(';')[1]
-        await call.message.answer('Вы действительно хотите удалить группу {group_name}?'.format(group_name=group_name),
+        await call.message.answer(f'Вы действительно хотите удалить группу {group_name}?',
                                   reply_markup=confirm_delete_kb)
+        async with state.proxy() as data:
+            data['group_id'] = group_id
+            data['group_name'] = group_name
         await FSMDelGroup.confirm.set()
 
 
@@ -105,14 +110,14 @@ async def get_del_group_confirm(call: types.CallbackQuery, state: FSMContext):
         if call.data == 'Cancel':
             await call.message.answer('Удаление выбранной группы отменено.')
         else:
-            call_data_list = call.data.split(';')
-            group_id = call_data_list[0]
-            group_name = call_data_list[1]
-            users_in_group = await sqlite_db.sql_get_users_from_group(group_id)
-            for user_name, user_id in users_in_group:
-                await sqlite_db.sql_del_user_from_group(user_id)
-            await sqlite_db.sql_del_group_from_db(group_id)
-            await call.message.answer('Группа {group_name} успешно удалена из базы'.format(group_name=group_name))
+            async with state.proxy() as data:
+                group_id = data['group_id']
+                group_name = data['group_name']
+                users_in_group = await sqlite_db.sql_get_users_from_group(group_id)
+                for user_name, user_id in users_in_group:
+                    await sqlite_db.sql_del_user_from_group(user_id)
+                await sqlite_db.sql_del_group_from_db(group_id)
+                await call.message.answer(f'Группа {group_name} успешно удалена из базы.')
         await state.finish()
 
 
