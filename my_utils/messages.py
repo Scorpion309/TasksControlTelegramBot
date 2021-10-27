@@ -27,3 +27,13 @@ async def message_to_user_change_task(user_id, from_user_id, task_title):
                                         f' Проверьте задание!')
     except Exception:
         await my_exceptions.send_user_link_for_chat_to_admin(from_user_id, user_id)
+
+
+async def message_print_tasks_for_sender(user_id, task_title, to_user, task, time_delta):
+    try:
+        await bot.send_message(user_id, f'Название задания: "{task_title}"\n'
+                                        f'Отправлено: "{to_user}"\n\n'
+                                        f'Задание: {task}\n\n'
+                                        f'До конца срока осталось: {time_delta}.\n')
+    except Exception:
+        pass

@@ -1,4 +1,3 @@
-import time
 from datetime import datetime
 
 from aiogram import types, Dispatcher
@@ -9,7 +8,6 @@ from aiogram_calendar import simple_cal_callback, SimpleCalendar
 
 from create_bot import bot
 from data_base import sqlite_db
-from exceptions import my_exceptions
 from keyboards import admin_kb
 from my_utils import messages
 from my_utils import utils
@@ -54,8 +52,7 @@ class FSMEditTask(StatesGroup):
 # Is the user administrator?
 # command=['moderator'], is_chat_admin=True
 async def make_changes_command(message: types.Message):
-    global ID, GROUP_ID
-    GROUP_ID = message.chat.id
+    global ID
     ID = message.from_user.id
     await bot.send_message(message.from_user.id, 'Что надо, хозяин???', reply_markup=admin_kb.kb_admin)
     await message.delete()
@@ -71,14 +68,10 @@ async def active_tasks_show(message: types.Message):
                 time_delta = 'срок выполения задания истек!!!'
             else:
                 time_delta = deadline_time - now_time
-            await bot.send_message(message.from_user.id,
-                                   'Название задания: {title}\n'
-                                   'Отправлено: {user_name}\n\n'
-                                   'Задание: {task_text}\n\n'
-                                   'До конца срока осталось: {time_delta}.\n'.format(title=task[2],
-                                                                                     task_text=task[3],
-                                                                                     time_delta=time_delta,
-                                                                                     user_name=task[1]))
+            task_title = task[2]
+            task_text = task[3]
+            to_user = task[1]
+            await messages.message_print_tasks_for_sender(message.from_user.id, task_title, to_user, task_text, time_delta)
 
 
 async def delete_group(message: types.Message):
@@ -262,16 +255,6 @@ async def add_new_group(message: types.Message):
     if message.from_user.id == ID:
         await FSMAddNewGroup.name.set()
         await message.reply('Введите название группы')
-
-
-# Exit from FSMGroup
-async def cancel_handler_new_group(message: types.Message, state: FSMContext):
-    if message.from_user.id == ID:
-        current_state = await state.get_state()
-        if current_state is None:
-            return
-        await state.finish()
-        await message.reply('OK')
 
 
 # Get first answer and put it into dict
