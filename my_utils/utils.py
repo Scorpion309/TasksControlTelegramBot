@@ -1,4 +1,10 @@
+from functools import wraps
+
+from aiogram.dispatcher import FSMContext
+from aiogram.types import CallbackQuery, Message
+
 from data_base import sqlite_db
+from handlers import admin
 from my_utils import messages
 
 
@@ -16,3 +22,28 @@ async def del_task_from_user(user_id, task_id, from_user_id, task_title):
     await sqlite_db.sql_del_task_from_user(task_id, user_id)
     # sending message to user who had this task
     await messages.message_to_user_delete_task(user_id, from_user_id, task_title)
+
+
+def check_access_call(func):
+    @wraps(func)
+    async def wrapper(call: CallbackQuery, state: FSMContext):
+        if call.from_user.id == admin.ID:
+            return await func(call, state)
+        else:
+            await call.message.reply('Доступ запрещен!!! Для начала работы отправьте команду /moderator в группе!')
+        return
+
+    return wrapper
+
+
+def check_access_message(func):
+    @wraps(func)
+    async def wrapper(message: Message, state: FSMContext):
+        if message.from_user.id == admin.ID:
+            result = await func(message, state)
+            return result
+        else:
+            await message.reply('Доступ запрещен!!! Для начала работы отправьте команду /moderator в группе!')
+        return
+
+    return wrapper
