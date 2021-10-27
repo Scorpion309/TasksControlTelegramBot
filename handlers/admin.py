@@ -288,7 +288,7 @@ async def get_group_name(message: types.Message, state: FSMContext):
 async def add_new_task(message: types.Message):
     if message.from_user.id == ID:
         await FSMAdmin.task_title.set()
-        await message.reply('Введите название задания')
+        await message.reply('Введите название для задания:')
 
 
 # Exit from FSMAdmin
@@ -307,7 +307,7 @@ async def get_task_title(message: types.Message, state: FSMContext):
         async with state.proxy() as data:
             data['task_title'] = message.text
         await FSMAdmin.next()
-        await message.reply('Теперь введите текст задания')
+        await message.reply('Теперь введите текст задания:')
 
 
 # Get second answer and put it into dict
@@ -316,7 +316,7 @@ async def get_task(message: types.Message, state: FSMContext):
         async with state.proxy() as data:
             data['task'] = message.text
         await FSMAdmin.next()
-        await message.reply('Выберите кому Вы хотите отправить задание')
+        await message.reply('Выберите кому Вы хотите отправить задание:')
 
 
 # Get third answer and put it into dict
@@ -325,42 +325,31 @@ async def get_to_user(message: types.Message, state: FSMContext):
         async with state.proxy() as data:
             data['to_user'] = message.text.split()
         await FSMAdmin.next()
-        await message.reply('Введите срок исполнения')
+        await message.reply('Введите срок исполнения:')
 
 
 # Get four's answer and put it into dict
 async def get_to_time(message: types.Message, state: FSMContext):
     if message.from_user.id == ID:
+        from_user_id = message.from_user.id
+        from_user = message.from_user.username
         async with state.proxy() as data:
             data['to_time'] = message.text
-            data['from_user'] = message.from_user.id
-            data['from_user_username'] = message.from_user.username
-        await sqlite_db.sql_add_task_to_db(state)
-        await bot.send_message(message.from_user.id, 'Задание успешно добавлено')
-        async with state.proxy() as data:
+            data['from_user'] = from_user_id
+            data['from_user_username'] = from_user
             task_title = data['task_title']
-            from_user = data['from_user_username']
             task = data['task']
             time_delta = data['to_time']
+            # sending message to users
             if isinstance(data['to_user'], list):
                 for user in data['to_user']:
                     user_id = user.strip('.,;')
-                    try:
-                        await bot.send_message(user_id, f'Вы получили новое задание: "{task_title}"!\n\n'
-                                                        f'От пользователя: {from_user}\n\n'
-                                                        f'Задание: {task}\n\n'
-                                                        f'Время выполнения: {time_delta}ч.')
-                    except Exception:
-                        await my_exceptions.send_user_link_for_chat_to_admin(message.from_user.id)
+                    await messages.message_to_user_new_task(user_id, from_user, from_user_id, task_title, task,
+                                                            time_delta)
             else:
-                try:
-                    await bot.send_message(data['to_user'], f'Вы получили новое задание: "{task_title}"!\n\n'
-                                                            f'От пользователя: {from_user}\n\n'
-                                                            f'Задание: {task}\n\n'
-                                                            f'Время выполнения: {time_delta}ч.')
-                except Exception:
-                    await my_exceptions.send_user_link_for_chat_to_admin(message.from_user.id)
-        time.sleep(3)
+                await messages.message_to_user_new_task(data['to_user'], from_user, ID, task_title, task, time_delta)
+        await sqlite_db.sql_add_task_to_db(state)
+        await bot.send_message(message.from_user.id, 'Задание успешно добавлено')
         await state.finish()
 
 
