@@ -25,7 +25,7 @@ async def del_task_from_user(user_id, task_id, from_user_id, task_title):
     await messages.message_to_user_delete_task(user_id, from_user_id, task_title)
 
 
-async def check_time(input_time):
+async def check_time_format(input_time):
     try:
         input_time = datetime.strptime(input_time, '%H:%M')
         new_time = datetime.time(input_time)

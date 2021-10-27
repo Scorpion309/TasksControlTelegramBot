@@ -19,7 +19,9 @@ GROUP_ID = 0
 class FSMAdmin(StatesGroup):
     task_title = State()
     task = State()
+    user_group_choice = State()
     to_user = State()
+    to_date = State()
     to_time = State()
 
 
@@ -268,8 +270,8 @@ async def get_group_name(message: types.Message, state: FSMContext):
 # Dialog for add new task
 @utils.check_access_message
 async def add_new_task(message: types.Message, state: FSMContext):
-    await FSMAdmin.task_title.set()
     await message.reply('Введите название для задания:')
+    await FSMAdmin.task_title.set()
 
 
 # Exit from FSMAdmin
@@ -287,8 +289,8 @@ async def cancel_handler(message: types.Message, state: FSMContext):
 async def get_task_title(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['task_title'] = message.text
-    await FSMAdmin.next()
     await message.reply('Теперь введите текст задания:')
+    await FSMAdmin.task.set()
 
 
 # Get second answer and put it into dict
@@ -296,42 +298,106 @@ async def get_task_title(message: types.Message, state: FSMContext):
 async def get_task(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['task'] = message.text
-    await FSMAdmin.next()
-    await message.reply('Выберите кому Вы хотите отправить задание:')
+    choice_kb = types.InlineKeyboardMarkup()
+    user_button = types.InlineKeyboardButton(text='Отправить пользователю', callback_data='To_user')
+    group_button = types.InlineKeyboardButton(text='Отправить в группу', callback_data='To_group')
+    choice_kb.insert(user_button).insert(group_button)
+    await message.reply('Кому отправить задание?', reply_markup=choice_kb)
+    await FSMAdmin.user_group_choice.set()
+
+
+@utils.check_access_call
+async def to_group_or_user_choice(call: types.CallbackQuery, state=FSMContext):
+    await call.message.edit_reply_markup()
+    if call.data == 'To_user':
+        all_user_from_db = await sqlite_db.sql_get_user_from_db_without_admins()
+        if all_user_from_db:
+            user_markup_kb = types.InlineKeyboardMarkup()
+            for user_name, user_id in all_user_from_db:
+                inline_btn = types.InlineKeyboardButton(text=user_name, callback_data=f'To_user;{user_id}')
+                user_markup_kb.insert(inline_btn)
+            await call.message.answer(f'Выберите пользователя, которому хотите отправить задание:',
+                                      reply_markup=user_markup_kb)
+        else:
+            await call.message.reply('В базе отсутствуют пользователи. Пригласите пользователей в группу!')
+            await state.finish()
+            return
+    else:
+        all_groups_in_db = await sqlite_db.sql_get_groups_from_db()
+        if all_groups_in_db:
+            group_markup_kb = types.InlineKeyboardMarkup()
+            for group_name, group_id in all_groups_in_db:
+                inline_btn = types.InlineKeyboardButton(text=group_name, callback_data=f'To_group;{group_id}')
+                group_markup_kb.insert(inline_btn)
+            await call.message.answer(f'Выберите группу в которую хотите отправить задание:',
+                                      reply_markup=group_markup_kb)
+        else:
+            await call.message.reply('В базе отсутствуют группы. Сначала создайте группу!')
+            await state.finish()
+            return
+    await FSMAdmin.to_user.set()
 
 
 # Get third answer and put it into dict
-@utils.check_access_message
-async def get_to_user(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        data['to_user'] = message.text.split()
-    await FSMAdmin.next()
-    await message.reply('Введите срок исполнения:')
+@utils.check_access_call
+async def get_to_user(call: types.CallbackQuery, state: FSMContext):
+    await call.message.edit_reply_markup()
+    command_list = call.data.split(';')
+    command = command_list[0]
+    if command == 'To_user':
+        user_id = command_list[1]
+        async with state.proxy() as data:
+            data['to_user'] = user_id
+    else:
+        group_id = command_list[1]
+        users_to_send_task = []
+        users = await sqlite_db.sql_get_users_from_group(group_id)
+        for user_name, user_id in users:
+            users_to_send_task.append(user_id)
+        async with state.proxy() as data:
+            data['to_user'] = users_to_send_task
+    await call.message.reply('Выберите дату:', reply_markup=await SimpleCalendar().start_calendar())
+    await FSMAdmin.to_date.set()
 
 
-# Get four's answer and put it into dict
+async def process_simple_calendar_to_new_task(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
+    selected, date = await SimpleCalendar().process_selection(call, callback_data)
+    if selected:
+        await call.message.answer(f'Вы выбрали {date.strftime("%d-%m-%Y")}.\n'
+                                  f'Введите время в формате: HH:MM')
+        async with state.proxy() as data:
+            data['date'] = date.strftime("%Y-%m-%d")
+        await FSMAdmin.to_time.set()
+
+
 @utils.check_access_message
-async def get_to_time(message: types.Message, state: FSMContext):
+async def get_execute_time(message: types.Message, state: FSMContext):
     from_user_id = message.from_user.id
     from_user = message.from_user.username
-    async with state.proxy() as data:
-        data['to_time'] = message.text
-        data['from_user'] = from_user_id
-        data['from_user_username'] = from_user
-        task_title = data['task_title']
-        task = data['task']
-        time_delta = data['to_time']
-        # sending message to users
-        if isinstance(data['to_user'], list):
-            for user in data['to_user']:
-                user_id = user.strip('.,;')
-                await messages.message_to_user_new_task(user_id, from_user, from_user_id, task_title, task,
-                                                        time_delta)
-        else:
-            await messages.message_to_user_new_task(data['to_user'], from_user, ID, task_title, task, time_delta)
-    await sqlite_db.sql_add_task_to_db(state)
-    await bot.send_message(message.from_user.id, 'Задание успешно добавлено')
-    await state.finish()
+    if await utils.check_time_format(message.text):
+        time = await utils.check_time_format(message.text)
+        start_time = datetime.now().replace(microsecond=0)
+        async with state.proxy() as data:
+            data['hours'] = time
+            data['from_user_id'] = from_user_id
+            data['start_time'] = start_time
+            execute_time = datetime.strptime(f'{data["date"]} {data["hours"]}', '%Y-%m-%d %H:%M:%S')
+            data['execute_time'] = execute_time
+            time_delta = execute_time - start_time
+            task_title = data['task_title']
+            task = data['task']
+            if isinstance(data['to_user'], list):
+                for user_id in data['to_user']:
+                    await messages.message_to_user_new_task(user_id, from_user, from_user_id, task_title, task,
+                                                            time_delta)
+            else:
+                await messages.message_to_user_new_task(data['to_user'], from_user, ID, task_title, task, time_delta)
+        await sqlite_db.sql_add_task_to_db(state)
+        await bot.send_message(message.from_user.id, 'Задание успешно добавлено')
+        await state.finish()
+    else:
+        await message.reply(f'Вы допустили ошибку! Введите время в формате: HH:MM')
+        await FSMAdmin.to_time.set()
 
 
 @utils.check_access_message
@@ -413,8 +479,8 @@ async def process_simple_calendar(call: types.CallbackQuery, callback_data: dict
 
 @utils.check_access_message
 async def get_change_time(message: types.Message, state: FSMContext):
-    if await utils.check_time(message.text):
-        time = await utils.check_time(message.text)
+    if await utils.check_time_format(message.text):
+        time = await utils.check_time_format(message.text)
         async with state.proxy() as data:
             data['hours'] = time
             task_id = data['task_id']
@@ -618,5 +684,8 @@ def register_handler_for_admin(dp: Dispatcher):
     dp.register_message_handler(cancel_handler, Text(equals='отмена', ignore_case=True), state="*")
     dp.register_message_handler(get_task_title, state=FSMAdmin.task_title)
     dp.register_message_handler(get_task, state=FSMAdmin.task)
-    dp.register_message_handler(get_to_user, state=FSMAdmin.to_user)
-    dp.register_message_handler(get_to_time, state=FSMAdmin.to_time)
+    dp.register_callback_query_handler(to_group_or_user_choice, state=FSMAdmin.user_group_choice)
+    dp.register_callback_query_handler(get_to_user, state=FSMAdmin.to_user)
+    dp.register_callback_query_handler(process_simple_calendar_to_new_task, simple_cal_callback.filter(),
+                                       state=FSMAdmin.to_date)
+    dp.register_message_handler(get_execute_time, state=FSMAdmin.to_time)

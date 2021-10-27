@@ -1,5 +1,4 @@
 import sqlite3 as sq
-from datetime import datetime, timedelta
 
 
 def sql_start():
@@ -39,20 +38,18 @@ def sql_start():
 
 async def sql_add_task_to_db(state):
     async with state.proxy() as data:
-        start_time = datetime.now().replace(microsecond=0)
-        to_time = start_time + timedelta(hours=int(data['to_time']))
         cur.execute('INSERT INTO tasks (task_title, task, start_time, execute_time)'
-                    ' VALUES (?, ?, ?, ?)', (data['task_title'], data['task'], start_time, to_time))
+                    ' VALUES (?, ?, ?, ?)', (data['task_title'], data['task'], data['start_time'],
+                                             data['execute_time']))
         task_id = cur.lastrowid
 
         if isinstance(data['to_user'], list):
-            for user in data['to_user']:
-                user_id = user.strip('.,;')
+            for user_id in data['to_user']:
                 cur.execute('INSERT INTO task (from_user_id, to_user_id, task_id, active)'
-                            ' VALUES (?, ?, ?, ?)', (data['from_user'], user_id, task_id, True))
+                            ' VALUES (?, ?, ?, ?)', (data['from_user_id'], user_id, task_id, True))
         else:
             cur.execute('INSERT INTO task (from_user_id, to_user_id, task_id, active)'
-                        ' VALUES (?, ?, ?, ?)', (data['from_user'], data['to_user'], task_id, True))
+                        ' VALUES (?, ?, ?, ?)', (data['from_user_id'], data['to_user'], task_id, True))
         base.commit()
 
 
@@ -124,7 +121,7 @@ async def sql_change_task_text(task_id, task_text):
 
 
 async def sql_change_task_activity_to_inactive(task_id):
-    cur.execute('UPDATE task SET active = FALSE WHERE task_id = ?', (task_id, ))
+    cur.execute('UPDATE task SET active = FALSE WHERE task_id = ?', (task_id,))
     base.commit()
 
 
