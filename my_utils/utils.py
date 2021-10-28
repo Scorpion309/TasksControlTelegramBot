@@ -65,14 +65,28 @@ async def send_report(task_id, from_user_id, report):
     user_name = await sqlite_db.sql_get_user_name(from_user_id)
     user_name = user_name[0][0]
     task_info = await sqlite_db.sql_get_task_info(task_id, from_user_id)
-    task_title, task, user_id_for_report = task_info[0]
+    task_title, task, user_id_for_report, _ = task_info[0]
     report_message = await messages.message_for_report(user_name, task_title, task, report)
     confirm_kb = types.InlineKeyboardMarkup()
-    accept_button = types.InlineKeyboardButton(text='Принять', callback_data='Accept')
-    decline_button = types.InlineKeyboardButton(text='Отказать', callback_data='Decline')
+    accept_button = types.InlineKeyboardButton(text='Принять', callback_data=f'Choice_accept;{task_id};{from_user_id};'
+                                                                             f'{task_title}',)
+    decline_button = types.InlineKeyboardButton(text='Отказать', callback_data=f'Choice_decline;{task_id};{from_user_id};'
+                                                                               f'{task_title}')
     confirm_kb.add(accept_button).insert(decline_button)
     await bot.send_message(user_id_for_report, report_message, reply_markup=confirm_kb)
 
 
-async def send_cause_to_change_time(task_id, user_id, cause):
-    pass
+async def send_cause_to_change_time(task_id, from_user_id, cause):
+    user_name = await sqlite_db.sql_get_user_name(from_user_id)
+    user_name = user_name[0][0]
+    task_info = await sqlite_db.sql_get_task_info(task_id, from_user_id)
+    task_title, task, user_id_for_report, execute_time = task_info[0]
+    report_message = await messages.message_for_cause(user_name, task_title, task, cause)
+    confirm_kb = types.InlineKeyboardMarkup()
+    accept_button = types.InlineKeyboardButton(text='Продлить срок', callback_data=f'Time_accept;{task_id};'
+                                                                                   f'{from_user_id};'f'{task_title}', )
+    decline_button = types.InlineKeyboardButton(text='Отказать',
+                                                callback_data=f'Time_decline;{task_id};{from_user_id};'
+                                                              f'{task_title}')
+    confirm_kb.add(accept_button).insert(decline_button)
+    await bot.send_message(user_id_for_report, report_message, reply_markup=confirm_kb)

@@ -181,7 +181,7 @@ async def sql_get_title_task_by_id(task_id):
 
 
 async def sql_get_task_info(task_id, to_user):
-    cur.execute('SELECT task_title, task, from_user_id FROM tasks '
+    cur.execute('SELECT task_title, task, from_user_id, execute_time FROM tasks '
                 'LEFT JOIN task '
                 'ON tasks.id = task.task_id '
                 'WHERE to_user_id = ? '

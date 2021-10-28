@@ -8,6 +8,7 @@ if __name__ == '__main__':
     async def on_startup(_):
         print('Bot online')
         sqlite_db.sql_start()
+        await sqlite_db.sql_bd()
 
 
     async def on_shutdown(_):

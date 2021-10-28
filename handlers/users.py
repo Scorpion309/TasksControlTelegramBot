@@ -1,7 +1,11 @@
+from datetime import datetime
+
 from aiogram import types, Dispatcher
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram_calendar import simple_cal_callback, SimpleCalendar
 
+from create_bot import bot
 from data_base import sqlite_db
 from my_utils import messages, utils
 
@@ -10,9 +14,12 @@ class FSMTasks(StatesGroup):
     action_choice = State()
     task = State()
     report = State()
-    report_confirm = State()
     cause = State()
-    cause_confirm = State()
+
+
+class FSMNewTime(StatesGroup):
+    date = State()
+    time = State()
 
 
 async def look_for_my_tasks(message: types.Message):
@@ -20,7 +27,7 @@ async def look_for_my_tasks(message: types.Message):
     look_for_tasks_button = types.InlineKeyboardButton(text='Просмотреть все активные задания',
                                                        callback_data='Look_for_tasks')
     finish_task_button = types.InlineKeyboardButton(text='Завершить задание', callback_data='Finish_task')
-    change_execute_time_button = types.InlineKeyboardButton(text='Нужно больше времени', callback_data='Change_time')
+    change_execute_time_button = types.InlineKeyboardButton(text='Продлить задание', callback_data='Change_time')
     task_choice_kb.add(look_for_tasks_button).add(finish_task_button).insert(change_execute_time_button)
     await message.reply('Выберите необходимое действие:', reply_markup=task_choice_kb)
     await FSMTasks.action_choice.set()
@@ -73,7 +80,7 @@ async def send_report(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         task_id = data['task_id']
         await utils.send_report(task_id, user_id, report)
-    await FSMTasks.report_confirm.set()
+    await state.finish()
 
 
 async def send_cause(message: types.Message, state: FSMContext):
@@ -82,7 +89,7 @@ async def send_cause(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         task_id = data['task_id']
         await utils.send_cause_to_change_time(task_id, user_id, cause)
-    await FSMTasks.cause_confirm.set()
+    await state.finish()
 
 
 async def start_command(message: types.Message):
@@ -93,23 +100,84 @@ async def help_command(message: types.Message):
     await messages.user_help_message(message)
 
 
-async def confirm_report(call: types.CallbackQuery, state: FSMContext):
-    print(call.data)
+async def confirm_report(call: types.CallbackQuery):
+    await call.message.edit_reply_markup()
+    command_line = call.data.split(';')
+    command = command_line[0]
+    task_id = command_line[1]
+    user_id = command_line[2]
+    task_title = command_line[3]
+    if command == 'Choice_accept':
+        await sqlite_db.sql_del_task_from_user(task_id, user_id)
+        await bot.send_message(user_id, f'Отчет по заданию "{task_title}" принят.')
+        message = 'Принято'
+    else:
+        await bot.send_message(user_id, f'Отчет по заданию "{task_title}" не принят. Доработайте задание!')
+        message = 'Отказано'
+    await call.message.reply(message)
 
 
 async def confirm_cause(call: types.CallbackQuery, state: FSMContext):
-    print(call.data)
+    await call.message.edit_reply_markup()
+    command_line = call.data.split(';')
+    command = command_line[0]
+    task_id = command_line[1]
+    user_id = command_line[2]
+    task_title = command_line[3]
+    if command == 'Time_accept':
+        execute_time = await sqlite_db.get_execute_time(task_id)
+        user_name = await sqlite_db.sql_get_user_name(user_id)
+        async with state.proxy() as data:
+            data['task_id'] = task_id
+            data['task_title'] = task_title
+            data['user_id'] = user_id
+            data['user_name'] = user_name
+            data['execute_time'] = execute_time
+        await bot.send_message(call.from_user.id, 'Выберите дату:',
+                               reply_markup=await SimpleCalendar().start_calendar())
+        await FSMNewTime.date.set()
+    else:
+        await bot.send_message(user_id, f'В продлении срока задания "{task_title}" отказано!')
+        message = 'Отказано'
+        await call.message.reply(message)
+        return
+
+
+async def process_simple_calendar_to_change_time(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
+    selected, date = await SimpleCalendar().process_selection(call, callback_data)
+    if selected:
+        await call.message.answer(f'Вы выбрали {date.strftime("%d-%m-%Y")}.\n'
+                                  f'Введите время в формате: HH:MM')
+        async with state.proxy() as data:
+            data['date'] = date.strftime("%Y-%m-%d")
+        await FSMNewTime.time.set()
+
+
+async def get_date_time(message: types.Message, state: FSMContext):
+    if await utils.check_time_format(message.text):
+        time = await utils.check_time_format(message.text)
+        async with state.proxy() as data:
+            data['hours'] = time
+            user_name = data['user_name']
+            execute_time = datetime.strptime(f'{data["date"]} {data["hours"]}', '%Y-%m-%d %H:%M:%S')
+            await sqlite_db.sql_change_execute_time_for_task(data['task_id'], execute_time)
+            await message.reply(f'Срок задания для пользователя "{user_name}" успешно изменен.')
+            await bot.send_message(data['user_id'], f'Срок выполнения задания изменен на: {execute_time}.')
+    await state.finish()
 
 
 def register_handlers_for_users(dp: Dispatcher):
     dp.register_message_handler(start_command, commands=['start'])
     dp.register_message_handler(help_command, commands=['help'])
 
-    dp.register_message_handler(look_for_my_tasks, commands=['Просмотреть_задания'], state=None)
+    dp.register_message_handler(look_for_my_tasks, commands=['Мои_задания'], state=None)
     dp.register_callback_query_handler(processing_user_choice, state=FSMTasks.action_choice)
     dp.register_callback_query_handler(get_comment_to_choice, state=FSMTasks.task)
     dp.register_message_handler(send_report, state=FSMTasks.report)
     dp.register_message_handler(send_cause, state=FSMTasks.cause)
 
-    dp.register_callback_query_handler(confirm_report, state=FSMTasks.report_confirm)
-    dp.register_callback_query_handler(confirm_cause, state=FSMTasks.cause_confirm)
+    dp.register_callback_query_handler(confirm_report, text_contains='Choice_')
+    dp.register_callback_query_handler(confirm_cause, text_contains='Time_')
+    dp.register_callback_query_handler(process_simple_calendar_to_change_time, simple_cal_callback.filter(),
+                                       state=FSMNewTime.date)
+    dp.register_message_handler(get_date_time, state=FSMNewTime.time)
