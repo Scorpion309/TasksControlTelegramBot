@@ -274,7 +274,6 @@ async def add_new_task(message: types.Message, state: FSMContext):
 
 
 # Exit from FSMAdmin
-@utils.check_access_message
 async def cancel_handler(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
     if current_state is None:
@@ -401,7 +400,7 @@ async def get_execute_time(message: types.Message, state: FSMContext):
 
 @utils.check_access_message
 async def edit_task(message: types.Message, state: FSMContext):
-    active_tasks = set(await sqlite_db.sql_get_id_active_tasks(message.from_user.id))
+    active_tasks = set(await sqlite_db.sql_get_id_active_tasks_from_user(message.from_user.id))
     if active_tasks:
         tasks_markup_kb = types.InlineKeyboardMarkup()
         for task_id, task_title in active_tasks:

@@ -1,9 +1,11 @@
 from datetime import datetime
 from functools import wraps
 
+from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.types import CallbackQuery, Message
 
+from create_bot import bot
 from data_base import sqlite_db
 from handlers import admin
 from my_utils import messages
@@ -57,3 +59,20 @@ def check_access_message(func):
         return
 
     return wrapper
+
+
+async def send_report(task_id, from_user_id, report):
+    user_name = await sqlite_db.sql_get_user_name(from_user_id)
+    user_name = user_name[0][0]
+    task_info = await sqlite_db.sql_get_task_info(task_id, from_user_id)
+    task_title, task, user_id_for_report = task_info[0]
+    report_message = await messages.message_for_report(user_name, task_title, task, report)
+    confirm_kb = types.InlineKeyboardMarkup()
+    accept_button = types.InlineKeyboardButton(text='Принять', callback_data='Accept')
+    decline_button = types.InlineKeyboardButton(text='Отказать', callback_data='Decline')
+    confirm_kb.add(accept_button).insert(decline_button)
+    await bot.send_message(user_id_for_report, report_message, reply_markup=confirm_kb)
+
+
+async def send_cause_to_change_time(task_id, user_id, cause):
+    pass

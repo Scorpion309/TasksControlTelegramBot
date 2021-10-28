@@ -180,13 +180,37 @@ async def sql_get_title_task_by_id(task_id):
     return task_title
 
 
-async def sql_get_id_active_tasks(from_user_id):
+async def sql_get_task_info(task_id, to_user):
+    cur.execute('SELECT task_title, task, from_user_id FROM tasks '
+                'LEFT JOIN task '
+                'ON tasks.id = task.task_id '
+                'WHERE to_user_id = ? '
+                'AND task.task_id = ? '
+                'GROUP BY task_title;', (to_user, task_id))
+    task_info = cur.fetchall()
+    base.commit()
+    return task_info
+
+
+async def sql_get_id_active_tasks_from_user(from_user_id):
     cur.execute('SELECT task_id, task_title FROM tasks '
                 'LEFT JOIN task '
                 'ON tasks.id = task.task_id '
                 'WHERE task.active = TRUE '
                 'AND from_user_id = ?'
                 'GROUP BY task_title;', (from_user_id,))
+    active_tasks = cur.fetchall()
+    base.commit()
+    return active_tasks
+
+
+async def sql_get_id_active_tasks_to_user(to_user_id):
+    cur.execute('SELECT task_id, task_title, task, execute_time FROM tasks '
+                'LEFT JOIN task '
+                'ON tasks.id = task.task_id '
+                'WHERE task.active = TRUE '
+                'AND to_user_id = ?'
+                'GROUP BY task_title;', (to_user_id,))
     active_tasks = cur.fetchall()
     base.commit()
     return active_tasks

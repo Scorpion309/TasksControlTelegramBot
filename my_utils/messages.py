@@ -1,5 +1,7 @@
 from aiogram import types
 
+from datetime import datetime
+
 from create_bot import bot
 from exceptions import my_exceptions
 from keyboards import kb_users
@@ -42,12 +44,28 @@ async def print_tasks_for_sender(user_id, task_title, to_user, task, time_delta)
         pass
 
 
+async def print_tasks_for_user(user_id, task_title, task, execute_time):
+    try:
+        execute_time = datetime.strptime(execute_time, '%Y-%m-%d %H:%M:%S')
+        await bot.send_message(user_id, f'Название задания: "{task_title}"\n'
+                                        f'Задание: {task}\n\n'
+                                        f'Срок исполнения: {execute_time.strftime("%d-%m-%Y %H:%M")}.\n')
+    except Exception:
+        pass
+
+
 async def user_start_message(message: types.Message):
     try:
         await bot.send_message(message.from_user.id, 'Выберите необходимую команду в меню', reply_markup=kb_users)
         await message.delete()
     except Exception:
         await message.reply('Общение с ботом только через ЛС, напишите ему:\nhttp://t.me/JobControlBot')
+
+
+async def message_for_report(user_name, task_title, task, report):
+    message = f'Пользователь "{user_name}" выполнил задание: "{task_title}"\n"{task}"\nОтчет по заданию:\n{report}'
+    return message
+
 
 
 async def user_help_message(message: types.Message):
