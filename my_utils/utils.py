@@ -69,9 +69,10 @@ async def send_report(task_id, from_user_id, report):
     report_message = await messages.message_for_report(user_name, task_title, task, report)
     confirm_kb = types.InlineKeyboardMarkup()
     accept_button = types.InlineKeyboardButton(text='Принять', callback_data=f'Choice_accept;{task_id};{from_user_id};'
-                                                                             f'{task_title}',)
-    decline_button = types.InlineKeyboardButton(text='Отказать', callback_data=f'Choice_decline;{task_id};{from_user_id};'
-                                                                               f'{task_title}')
+                                                                             f'{task_title}', )
+    decline_button = types.InlineKeyboardButton(text='Отказать',
+                                                callback_data=f'Choice_decline;{task_id};{from_user_id};'
+                                                              f'{task_title}')
     confirm_kb.add(accept_button).insert(decline_button)
     await bot.send_message(user_id_for_report, report_message, reply_markup=confirm_kb)
 

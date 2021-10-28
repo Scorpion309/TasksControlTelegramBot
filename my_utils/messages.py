@@ -1,6 +1,6 @@
-from aiogram import types
-
 from datetime import datetime
+
+from aiogram import types
 
 from create_bot import bot
 from exceptions import my_exceptions
@@ -66,11 +66,11 @@ async def message_for_report(user_name, task_title, task, report):
     message = f'Пользователь "{user_name}" выполнил задание: "{task_title}"\n"{task}"\nОтчет по заданию:\n{report}'
     return message
 
+
 async def message_for_cause(user_name, task_title, task, cause):
     message = f'Пользователь "{user_name}" просит продлить срок выполнения задания: "{task_title}"\n"{task}"\n' \
               f'Причина:\n{cause}'
     return message
-
 
 
 async def user_help_message(message: types.Message):
