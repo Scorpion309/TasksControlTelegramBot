@@ -1,4 +1,4 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton  # , ReplyKeyboardRemove
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 new_task_button = KeyboardButton('/Новое_задание')
 all_active_tasks_button = KeyboardButton('/Активные_задания')

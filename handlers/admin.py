@@ -9,8 +9,7 @@ from aiogram_calendar import simple_cal_callback, SimpleCalendar
 from create_bot import bot
 from data_base import sqlite_db
 from keyboards import admin_kb
-from my_utils import messages
-from my_utils import utils
+from my_utils import messages, utils
 
 ID = None
 GROUP_ID = 0
@@ -74,8 +73,8 @@ async def active_tasks_show(message: types.Message, state: FSMContext):
         task_title = task[2]
         task_text = task[3]
         to_user = task[1]
-        await messages.message_print_tasks_for_sender(message.from_user.id, task_title, to_user, task_text,
-                                                      time_delta)
+        await messages.print_tasks_for_sender(message.from_user.id, task_title, to_user, task_text,
+                                              time_delta)
 
 
 @utils.check_access_message
