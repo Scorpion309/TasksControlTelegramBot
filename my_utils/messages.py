@@ -82,4 +82,8 @@ async def message_for_cause(user_name, task_title, task, cause):
 
 
 async def user_help_message(message: types.Message):
-    pass
+    await message.reply('Команды бота:\n'
+                        'Все команды должны начинаться с символа «/».\n'
+                        '/start - начало работы с ботом\n'
+                        '/help - начало работы с ботом\n'
+                        '/moderator - админка  (доступна только для администраторов группы)')

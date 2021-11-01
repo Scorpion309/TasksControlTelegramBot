@@ -25,7 +25,7 @@ async def check_deadlines():
 
 
 async def check_for_deadlines():
-    aioschedule.every(10).minutes.do(check_deadlines)
+    aioschedule.every(15).minutes.do(check_deadlines)
     while True:
         await aioschedule.run_pending()
         await asyncio.sleep(1)
