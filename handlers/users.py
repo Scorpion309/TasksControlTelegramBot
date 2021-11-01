@@ -127,14 +127,12 @@ async def confirm_cause(call: types.CallbackQuery, state: FSMContext):
     task_title = await sqlite_db.sql_get_title_task_by_id(task_id)
     task_title = task_title[0][0]
     if command == 'Time_accept':
-        execute_time = await sqlite_db.get_execute_time(task_id)
         user_name = await sqlite_db.sql_get_user_name(user_id)
         async with state.proxy() as data:
             data['task_id'] = task_id
             data['task_title'] = task_title
             data['user_id'] = user_id
-            data['user_name'] = user_name
-            data['execute_time'] = execute_time
+            data['user_name'] = user_name[0][0]
         await bot.send_message(call.from_user.id, 'Выберите дату:',
                                reply_markup=await SimpleCalendar().start_calendar())
         await FSMNewTime.date.set()
@@ -164,7 +162,8 @@ async def get_date_time(message: types.Message, state: FSMContext):
             execute_time = datetime.strptime(f'{data["date"]} {data["hours"]}', '%Y-%m-%d %H:%M:%S')
             await sqlite_db.sql_change_execute_time_for_task(data['task_id'], execute_time, data['user_id'])
             await message.reply(f'Срок задания для пользователя "{user_name}" успешно изменен.')
-            await bot.send_message(data['user_id'], f'Срок выполнения задания изменен на: {execute_time}.')
+            await bot.send_message(data['user_id'], f'Срок выполнения задания изменен на:'
+                                                    f' {execute_time.strftime("%d-%m-%Y %H:%M")}.')
     await state.finish()
 
 
