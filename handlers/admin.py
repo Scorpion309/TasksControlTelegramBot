@@ -608,7 +608,7 @@ async def change_task(call: types.CallbackQuery, state: FSMContext):
 
         if command == 'Add_to_user':
             user_id = command_list[1]
-            await utils.add_task_to_user(user_id, task_id, from_user, ID, task_title, task, time_delta)
+            await utils.add_task_to_user(user_id, task_id, from_user, ID, task_title, task, time_delta, deadline_time)
             await call.message.reply(f'Задание "{task_title}" успешно отправлено пользователю.')
         elif command == 'Del_from_user':
             user_id = command_list[1]
@@ -626,7 +626,8 @@ async def change_task(call: types.CallbackQuery, state: FSMContext):
                 users_from_group = users_from_group - users_which_have_this_task
                 if users_from_group:
                     for user_name, user_id in users_from_group:
-                        await utils.add_task_to_user(user_id, task_id, from_user, ID, task_title, task, time_delta)
+                        await utils.add_task_to_user(user_id, task_id, from_user, ID, task_title, task, time_delta,
+                                                     deadline_time)
                     await call.message.reply(f'Задание "{task_title}" успешно отправлено пользователям группы.')
                 else:
                     await call.message.reply('В группе все пользователи уже получили это задание,'

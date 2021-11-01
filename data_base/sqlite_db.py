@@ -30,6 +30,7 @@ def sql_start():
                  'to_user_id INTEGER,'
                  'task_id INTEGER,'
                  'active BOOLEAN NOT NULL,'
+                 'deadline DATETIME,'
                  'FOREIGN KEY(from_user_id) REFERENCES users(user_id),'
                  'FOREIGN KEY(to_user_id) REFERENCES users(user_id),'
                  'FOREIGN KEY(task_id) REFERENCES tasks(id));')
@@ -45,17 +46,19 @@ async def sql_add_task_to_db(state):
 
         if isinstance(data['to_user'], list):
             for user_id in data['to_user']:
-                cur.execute('INSERT INTO task (from_user_id, to_user_id, task_id, active)'
-                            ' VALUES (?, ?, ?, ?)', (data['from_user_id'], user_id, task_id, True))
+                cur.execute('INSERT INTO task (from_user_id, to_user_id, task_id, active, deadline)'
+                            ' VALUES (?, ?, ?, ?, ?)', (data['from_user_id'], user_id, task_id, True,
+                                                        data['execute_time']))
         else:
-            cur.execute('INSERT INTO task (from_user_id, to_user_id, task_id, active)'
-                        ' VALUES (?, ?, ?, ?)', (data['from_user_id'], data['to_user'], task_id, True))
+            cur.execute('INSERT INTO task (from_user_id, to_user_id, task_id, active,  deadline)'
+                        ' VALUES (?, ?, ?, ?, ?)', (data['from_user_id'], data['to_user'], task_id, True,
+                                                    data['execute_time']))
         base.commit()
 
 
-async def sql_add_task_to_user(user_id, task_id, from_user_id):
-    cur.execute('INSERT INTO task (to_user_id, task_id, from_user_id, active) VALUES (?, ?, ?, ?)',
-                (user_id, task_id, from_user_id, True))
+async def sql_add_task_to_user(user_id, task_id, from_user_id, deadline):
+    cur.execute('INSERT INTO task (to_user_id, task_id, from_user_id, active, deadline) VALUES (?, ?, ?, ?, ?)',
+                (user_id, task_id, from_user_id, True, deadline))
     base.commit()
 
 
@@ -110,8 +113,13 @@ async def sql_change_group_name(group_id, new_name):
     base.commit()
 
 
-async def sql_change_execute_time_for_task(task_id, execute_time):
-    cur.execute('UPDATE tasks SET execute_time = ? WHERE id = ?', (execute_time, task_id))
+async def sql_change_execute_time_for_task(task_id, execute_time, to_user_id=None):
+    if not to_user_id:
+        cur.execute('UPDATE task SET deadline = ? WHERE task_id = ?', (execute_time, task_id))
+        cur.execute('UPDATE tasks SET execute_time = ? WHERE id = ?', (execute_time, task_id))
+    else:
+        cur.execute('UPDATE task SET deadline = ? WHERE task_id = ? AND to_user_id = ?', (execute_time, task_id,
+                                                                                          to_user_id))
     base.commit()
 
 
@@ -126,7 +134,7 @@ async def sql_change_task_activity_to_inactive(task_id):
 
 
 async def sql_get_active_tasks(admin_id):
-    cur.execute('SELECT to_user_id, user_name, task_title, task, start_time, execute_time, task_id  FROM task '
+    cur.execute('SELECT to_user_id, user_name, task_title, task, start_time, deadline, task_id  FROM task '
                 'LEFT JOIN users '
                 'ON users.user_id = task.to_user_id '
                 'LEFT JOIN tasks '
@@ -181,7 +189,7 @@ async def sql_get_title_task_by_id(task_id):
 
 
 async def sql_get_task_info(task_id, to_user):
-    cur.execute('SELECT task_title, task, from_user_id, execute_time FROM tasks '
+    cur.execute('SELECT task_title, task, from_user_id, deadline FROM tasks '
                 'LEFT JOIN task '
                 'ON tasks.id = task.task_id '
                 'WHERE to_user_id = ? '
@@ -205,7 +213,7 @@ async def sql_get_id_active_tasks_from_user(from_user_id):
 
 
 async def sql_get_id_active_tasks_to_user(to_user_id):
-    cur.execute('SELECT task_id, task_title, task, execute_time FROM tasks '
+    cur.execute('SELECT task_id, task_title, task, deadline FROM tasks '
                 'LEFT JOIN task '
                 'ON tasks.id = task.task_id '
                 'WHERE task.active = TRUE '

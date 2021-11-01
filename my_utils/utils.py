@@ -11,9 +11,9 @@ from handlers import admin
 from my_utils import messages
 
 
-async def add_task_to_user(user_id, task_id, from_user, from_user_id, task_title, task, time_delta):
+async def add_task_to_user(user_id, task_id, from_user, from_user_id, task_title, task, time_delta, deadline):
     # adding task to user
-    await sqlite_db.sql_add_task_to_user(user_id, task_id, from_user_id)
+    await sqlite_db.sql_add_task_to_user(user_id, task_id, from_user_id, deadline)
     # if this task was empty before adding -> delete empty task
     sqlite_db.sql_del_empty_task_if_there_is(task_id, from_user_id)
     # sending message to user who got new task
@@ -68,11 +68,9 @@ async def send_report(task_id, from_user_id, report):
     task_title, task, user_id_for_report, _ = task_info[0]
     report_message = await messages.message_for_report(user_name, task_title, task, report)
     confirm_kb = types.InlineKeyboardMarkup()
-    accept_button = types.InlineKeyboardButton(text='Принять', callback_data=f'Choice_accept;{task_id};{from_user_id};'
-                                                                             f'{task_title}', )
+    accept_button = types.InlineKeyboardButton(text='Принять', callback_data=f'Choice_accept;{task_id};{from_user_id}')
     decline_button = types.InlineKeyboardButton(text='Отказать',
-                                                callback_data=f'Choice_decline;{task_id};{from_user_id};'
-                                                              f'{task_title}')
+                                                callback_data=f'Choice_decline;{task_id};{from_user_id}')
     confirm_kb.add(accept_button).insert(decline_button)
     await bot.send_message(user_id_for_report, report_message, reply_markup=confirm_kb)
 
@@ -85,9 +83,8 @@ async def send_cause_to_change_time(task_id, from_user_id, cause):
     report_message = await messages.message_for_cause(user_name, task_title, task, cause)
     confirm_kb = types.InlineKeyboardMarkup()
     accept_button = types.InlineKeyboardButton(text='Продлить срок', callback_data=f'Time_accept;{task_id};'
-                                                                                   f'{from_user_id};'f'{task_title}', )
+                                                                                   f'{from_user_id}')
     decline_button = types.InlineKeyboardButton(text='Отказать',
-                                                callback_data=f'Time_decline;{task_id};{from_user_id};'
-                                                              f'{task_title}')
+                                                callback_data=f'Time_decline;{task_id};{from_user_id}')
     confirm_kb.add(accept_button).insert(decline_button)
     await bot.send_message(user_id_for_report, report_message, reply_markup=confirm_kb)

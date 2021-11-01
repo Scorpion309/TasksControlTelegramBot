@@ -106,7 +106,8 @@ async def confirm_report(call: types.CallbackQuery):
     command = command_line[0]
     task_id = command_line[1]
     user_id = command_line[2]
-    task_title = command_line[3]
+    task_title = await sqlite_db.sql_get_title_task_by_id(task_id)
+    task_title = task_title[0][0]
     if command == 'Choice_accept':
         await sqlite_db.sql_del_task_from_user(task_id, user_id)
         await bot.send_message(user_id, f'Отчет по заданию "{task_title}" принят.')
@@ -123,7 +124,8 @@ async def confirm_cause(call: types.CallbackQuery, state: FSMContext):
     command = command_line[0]
     task_id = command_line[1]
     user_id = command_line[2]
-    task_title = command_line[3]
+    task_title = await sqlite_db.sql_get_title_task_by_id(task_id)
+    task_title = task_title[0][0]
     if command == 'Time_accept':
         execute_time = await sqlite_db.get_execute_time(task_id)
         user_name = await sqlite_db.sql_get_user_name(user_id)
@@ -160,7 +162,7 @@ async def get_date_time(message: types.Message, state: FSMContext):
             data['hours'] = time
             user_name = data['user_name']
             execute_time = datetime.strptime(f'{data["date"]} {data["hours"]}', '%Y-%m-%d %H:%M:%S')
-            await sqlite_db.sql_change_execute_time_for_task(data['task_id'], execute_time)
+            await sqlite_db.sql_change_execute_time_for_task(data['task_id'], execute_time, data['user_id'])
             await message.reply(f'Срок задания для пользователя "{user_name}" успешно изменен.')
             await bot.send_message(data['user_id'], f'Срок выполнения задания изменен на: {execute_time}.')
     await state.finish()
