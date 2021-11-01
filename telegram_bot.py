@@ -1,14 +1,18 @@
+import asyncio
+
 from aiogram.utils import executor
 
 from create_bot import dp
 from data_base import sqlite_db
 from handlers import users, admin, other
+from my_utils import utils
 
 if __name__ == '__main__':
     async def on_startup(_):
         print('Bot online')
         sqlite_db.sql_start()
-        await sqlite_db.sql_bd()
+        asyncio.create_task(utils.check_for_deadlines())
+        # await sqlite_db.sql_bd() #for tests
 
 
     async def on_shutdown(_):

@@ -42,8 +42,8 @@ async def processing_user_choice(call: types.CallbackQuery, state: FSMContext):
         if command == 'Look_for_tasks':
             for task_id, task_title, task, execute_time in tasks:
                 await messages.print_tasks_for_user(user_id, task_title, task, execute_time)
-                await state.finish()
-                return
+            await state.finish()
+            return
         else:
             choice_task_kb = types.InlineKeyboardMarkup()
             for task_id, task_title, task, execute_time in tasks:

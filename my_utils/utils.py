@@ -1,6 +1,8 @@
+import asyncio
 from datetime import datetime
 from functools import wraps
 
+import aioschedule
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.types import CallbackQuery, Message
@@ -9,6 +11,24 @@ from create_bot import bot
 from data_base import sqlite_db
 from handlers import admin
 from my_utils import messages
+
+
+async def check_deadlines():
+    tasks_from_db = await sqlite_db.sql_get_all_tasks_from_db()
+    now_time = datetime.now().replace(microsecond=0)
+    if tasks_from_db:
+        for user_id, user_name, from_user_id, task_id, task_title, task, deadline in tasks_from_db:
+            deadline_time = datetime.strptime(deadline, '%Y-%m-%d %H:%M:%S')
+            remaining_time = int((deadline_time - now_time).seconds / 60)
+            if remaining_time < 30:
+                await messages.message_to_user_for_deadline(user_id, task_title, remaining_time)
+
+
+async def check_for_deadlines():
+    aioschedule.every(10).minutes.do(check_deadlines)
+    while True:
+        await aioschedule.run_pending()
+        await asyncio.sleep(1)
 
 
 async def add_task_to_user(user_id, task_id, from_user, from_user_id, task_title, task, time_delta, deadline):

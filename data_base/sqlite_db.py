@@ -146,6 +146,18 @@ async def sql_get_active_tasks(admin_id):
     return active_tasks
 
 
+async def sql_get_all_tasks_from_db():
+    cur.execute('SELECT to_user_id, user_name, from_user_id, task_id, task_title, task, deadline FROM task '
+                'LEFT JOIN users '
+                'ON users.user_id = task.to_user_id '
+                'LEFT JOIN tasks '
+                'ON tasks.id = task.task_id '
+                'WHERE task.active = TRUE;')
+    active_tasks = cur.fetchall()
+    base.commit()
+    return active_tasks
+
+
 async def get_task_text(task_id):
     cur.execute('SELECT task_title FROM tasks WHERE id = ?;', (task_id,))
     task = cur.fetchall()

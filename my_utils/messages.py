@@ -62,6 +62,14 @@ async def user_start_message(message: types.Message):
         await message.reply('Общение с ботом только через ЛС, напишите ему:\nhttp://t.me/JobControlBot')
 
 
+async def message_to_user_for_deadline(user_id, task_title, remaining_time):
+    try:
+        await bot.send_message(user_id, f'До конца задания "{task_title}",'
+                                        f' осталось: {remaining_time} мин. Поторопитесь!')
+    except Exception:
+        pass
+
+
 async def message_for_report(user_name, task_title, task, report):
     message = f'Пользователь "{user_name}" выполнил задание: "{task_title}"\n"{task}"\nОтчет по заданию:\n{report}'
     return message
